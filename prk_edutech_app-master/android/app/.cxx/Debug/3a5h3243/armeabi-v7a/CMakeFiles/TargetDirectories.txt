@@ -1,0 +1,2 @@
+C:/Development/prk_edutech_app/android/app/.cxx/Debug/3a5h3243/armeabi-v7a/CMakeFiles/edit_cache.dir
+C:/Development/prk_edutech_app/android/app/.cxx/Debug/3a5h3243/armeabi-v7a/CMakeFiles/rebuild_cache.dir

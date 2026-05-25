@@ -1,0 +1,2 @@
+C:/Development/Flutter/prk_edutech_app/android/app/.cxx/RelWithDebInfo/s3n62694/armeabi-v7a/CMakeFiles/edit_cache.dir
+C:/Development/Flutter/prk_edutech_app/android/app/.cxx/RelWithDebInfo/s3n62694/armeabi-v7a/CMakeFiles/rebuild_cache.dir

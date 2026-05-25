@@ -1,0 +1,2 @@
+C:/Users/aksml/Development/JSTCLICK/PRK/prk_edutech_app/android/app/.cxx/RelWithDebInfo/5j2c4w18/x86/CMakeFiles/edit_cache.dir
+C:/Users/aksml/Development/JSTCLICK/PRK/prk_edutech_app/android/app/.cxx/RelWithDebInfo/5j2c4w18/x86/CMakeFiles/rebuild_cache.dir

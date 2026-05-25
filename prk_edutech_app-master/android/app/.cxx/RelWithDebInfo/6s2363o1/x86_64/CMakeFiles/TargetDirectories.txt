@@ -1,0 +1,2 @@
+C:/Development/prk_edutech_app/android/app/.cxx/RelWithDebInfo/6s2363o1/x86_64/CMakeFiles/edit_cache.dir
+C:/Development/prk_edutech_app/android/app/.cxx/RelWithDebInfo/6s2363o1/x86_64/CMakeFiles/rebuild_cache.dir

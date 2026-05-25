@@ -1,0 +1,16 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Flutter (D temp/cache)",
+      "request": "launch",
+      "type": "dart",
+      "env": {
+        "TEMP": "D:\\flutter-temp",
+        "TMP": "D:\\flutter-temp",
+        "GRADLE_USER_HOME": "D:\\gradle-home",
+        "PUB_CACHE": "D:\\pub-cache"
+      }
+    }
+  ]
+}
