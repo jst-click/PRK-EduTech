@@ -16,7 +16,7 @@
 // //             accountName: const Text('Amit', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
 // //             accountEmail: const Text('Organization Code VGCKR'),
 // //             currentAccountPicture: CircleAvatar(
-// //               backgroundColor: Colors.white,
+// //               backgroundColor: const Color(0xFFFFF3E0),
 // //               child: Icon(Icons.person, size: 50, color: Colors.black87),
 // //             ),
 // //             decoration: const BoxDecoration(
@@ -207,7 +207,7 @@
 //                 style: const TextStyle(color: Colors.white70)
 //             ),
 //             currentAccountPicture: CircleAvatar(
-//               backgroundColor: Colors.white,
+//               backgroundColor: const Color(0xFFFFF3E0),
 //               backgroundImage: _profileImageUrl != null
 //                   ? NetworkImage(_profileImageUrl!)
 //                   : null,

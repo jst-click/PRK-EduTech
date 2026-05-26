@@ -17,6 +17,7 @@ class Course {
   final String language;
   final String mode;
   final bool topCourse;
+  final bool topCourseEnabled;
   final bool paid;
   final bool isBase64;
   final Uint8List? imageBytes;
@@ -39,6 +40,7 @@ class Course {
     required this.language,
     required this.mode,
     required this.topCourse,
+    required this.topCourseEnabled,
     required this.paid,
     required this.isBase64,
     this.imageBytes,
@@ -71,20 +73,26 @@ class Course {
     final parsedStartDate =
         DateTime.tryParse((json['startDate'] ?? '').toString());
     final parsedEndDate = DateTime.tryParse((json['endDate'] ?? '').toString());
-    final parsedRating =
-        double.tryParse((json['rating'] ?? json['avgRating'] ?? '4.5').toString()) ??
-            4.5;
+    final parsedRating = double.tryParse(
+            (json['rating'] ?? json['avgRating'] ?? '4.5').toString()) ??
+        4.5;
     final parsedReviews = int.tryParse(
-            (json['reviewsCount'] ?? json['totalReviews'] ?? '128').toString()) ??
+            (json['reviewsCount'] ?? json['totalReviews'] ?? '128')
+                .toString()) ??
         128;
-    final parsedLessons =
-        int.tryParse((json['lessonsCount'] ?? json['lessons'] ?? '28').toString()) ??
-            28;
+    final parsedLessons = int.tryParse(
+            (json['lessonsCount'] ?? json['lessons'] ?? '28').toString()) ??
+        28;
     final parsedStudents = int.tryParse(
-            (json['studentsCount'] ?? json['enrolledStudents'] ?? '1200').toString()) ??
+            (json['studentsCount'] ?? json['enrolledStudents'] ?? '1200')
+                .toString()) ??
         1200;
     final parsedCertificate = json['certificate'] == true ||
         (json['certificate'] ?? '').toString().toLowerCase() == 'yes';
+    final topCourseEnabled = json['topCourseEnabled'] == true ||
+        json['topCourse'] == true ||
+        (json['status'] ?? '').toString().toLowerCase() == 'enabled' ||
+        (json['status'] ?? '').toString().toLowerCase() == 'active';
 
     return Course(
       id: (json['_id'] ?? '').toString(),
@@ -101,7 +109,8 @@ class Course {
       imageUrl: imageValue,
       language: (json['language'] ?? 'N/A').toString(),
       mode: (json['mode'] ?? json['access'] ?? 'N/A').toString(),
-      topCourse: json['topCourse'] == true,
+      topCourse: topCourseEnabled,
+      topCourseEnabled: topCourseEnabled,
       paid: json['paid'] == true || !isFree,
       isBase64: isBase64Image,
       imageBytes: imageBytes,
@@ -116,7 +125,16 @@ class Course {
 }
 
 class CourseDetailScreen extends StatefulWidget {
-  const CourseDetailScreen({Key? key}) : super(key: key);
+  final bool onlyTopCourses;
+  final String headerTitle;
+  final String headerSubtitle;
+
+  const CourseDetailScreen({
+    Key? key,
+    this.onlyTopCourses = false,
+    this.headerTitle = 'Our Courses',
+    this.headerSubtitle = 'Explore our wide range of courses',
+  }) : super(key: key);
 
   @override
   _CourseDetailScreenState createState() => _CourseDetailScreenState();
@@ -169,6 +187,7 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
               .whereType<Map<String, dynamic>>()
               .map(Course.fromJson)
               .where((course) => course.id.isNotEmpty)
+              .where((course) => !widget.onlyTopCourses || course.topCourseEnabled)
               .toList();
           isLoading = false;
         });
@@ -206,8 +225,10 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
       MaterialPageRoute(
         builder: (context) => CourseDetailsPage(
           course: course,
-          coursePeriod: '${_formatDate(course.startDate)} - ${_formatDate(course.endDate)}',
-          studentsText: '${_formatStudents(course.studentsCount)} Students Enrolled',
+          coursePeriod:
+              '${_formatDate(course.startDate)} - ${_formatDate(course.endDate)}',
+          studentsText:
+              '${_formatStudents(course.studentsCount)} Students Enrolled',
         ),
       ),
     );
@@ -580,13 +601,13 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
                                   ),
                                 ),
                                 const SizedBox(width: 8),
-                                const Expanded(
+                                Expanded(
                                   child: Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        'Our Courses',
+                                        widget.headerTitle,
                                         style: TextStyle(
                                           color: Color(0xFF1B143D),
                                           fontSize: 30 / 2,
@@ -595,7 +616,7 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
                                       ),
                                       SizedBox(height: 2),
                                       Text(
-                                        'Explore our wide range of courses',
+                                        widget.headerSubtitle,
                                         style: TextStyle(
                                           color: Color(0xFF7E7893),
                                           fontSize: 12,
@@ -690,27 +711,6 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
     );
   }
 
-  Widget _buildAvatarBadge(String text, Color color) {
-    return Container(
-      width: 24,
-      height: 24,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: color,
-        border: Border.all(color: Colors.white, width: 1.4),
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        text,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 9,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
-  }
-
   Widget _buildTabButton(int index, String title) {
     final isActive = _activeTab == index;
     return Expanded(
@@ -721,8 +721,9 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
             Text(
               title,
               style: TextStyle(
-                color:
-                    isActive ? const Color(0xFF6842E8) : const Color(0xFF706B87),
+                color: isActive
+                    ? const Color(0xFF6842E8)
+                    : const Color(0xFF706B87),
                 fontSize: 14.2,
                 fontWeight: isActive ? FontWeight.w700 : FontWeight.w600,
               ),
@@ -954,7 +955,7 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
                       child: Column(
                         children: [
                           Container(
-                            padding: const EdgeInsets.fromLTRB(12, 12, 10, 10),
+                            padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
                             decoration: BoxDecoration(
                               gradient: const LinearGradient(
                                 colors: [Color(0xFFF6F2FF), Color(0xFFF2EDFF)],
@@ -963,127 +964,75 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
                               ),
                               borderRadius: BorderRadius.circular(16),
                             ),
-                            child: Row(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        course.courseName,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                          color: Color(0xFF1C1739),
-                                          fontSize: 17,
-                                          fontWeight: FontWeight.w800,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 6),
-                                      Row(
-                                        children: [
-                                          const Icon(Icons.star, size: 13.4, color: Color(0xFFFF8A00)),
-                                          const Icon(Icons.star, size: 13.4, color: Color(0xFFFF8A00)),
-                                          const Icon(Icons.star, size: 13.4, color: Color(0xFFFF8A00)),
-                                          const Icon(Icons.star, size: 13.4, color: Color(0xFFFF8A00)),
-                                          const Icon(Icons.star, size: 13.4, color: Color(0xFFFFC38B)),
-                                          const SizedBox(width: 3),
-                                          Text(
-                                            '${course.rating.toStringAsFixed(1)} (${course.reviewsCount} Reviews)',
-                                            style: const TextStyle(
-                                              color: Color(0xFF3A3651),
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 10, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: course.paid
-                                              ? const Color(0xFFFFF0EB)
-                                              : const Color(0xFFE9F9EE),
-                                          borderRadius: BorderRadius.circular(10),
-                                        ),
-                                        child: Text(
-                                          course.paid ? 'Paid' : 'Free',
-                                          style: TextStyle(
-                                            color: course.paid
-                                                ? const Color(0xFFF26A47)
-                                                : const Color(0xFF2D9A54),
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        'Learn everything step by step with expert guidance and lifetime access to all course materials.',
-                                        maxLines: 3,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                          color: Color(0xFF5D5679),
-                                          fontSize: 13,
-                                          height: 1.35,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 10),
-                                      Row(
-                                        children: [
-                                          SizedBox(
-                                            width: 72,
-                                            height: 24,
-                                            child: Stack(
-                                              clipBehavior: Clip.none,
-                                              children: [
-                                                Positioned(
-                                                  left: 0,
-                                                  child: _buildAvatarBadge(
-                                                      'A', const Color(0xFFE59F67)),
-                                                ),
-                                                Positioned(
-                                                  left: 16,
-                                                  child: _buildAvatarBadge(
-                                                      'M', const Color(0xFF9F7AE9)),
-                                                ),
-                                                Positioned(
-                                                  left: 32,
-                                                  child: _buildAvatarBadge(
-                                                      'R', const Color(0xFF5F7FE6)),
-                                                ),
-                                                Positioned(
-                                                  left: 48,
-                                                  child: _buildAvatarBadge(
-                                                      '+', const Color(0xFF7548EA)),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          Expanded(
-                                            child: Text(
-                                              widget.studentsText,
-                                              style: const TextStyle(
-                                                color: Color(0xFF3E395B),
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
                                 ClipRRect(
                                   borderRadius: BorderRadius.circular(14),
                                   child: SizedBox(
-                                    width: isSmallPhone ? 110 : 126,
-                                    height: isSmallPhone ? 145 : 160,
+                                    width: double.infinity,
+                                    height: isSmallPhone ? 185 : 215,
                                     child: _buildDetailImage(course),
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  course.courseName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Color(0xFF1C1739),
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: course.paid
+                                            ? const Color(0xFFFFF0EB)
+                                            : const Color(0xFFE9F9EE),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Text(
+                                        course.paid ? 'Paid' : 'Free',
+                                        style: TextStyle(
+                                          color: course.paid
+                                              ? const Color(0xFFF26A47)
+                                              : const Color(0xFF2D9A54),
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        '${course.rating.toStringAsFixed(1)} (${course.reviewsCount} Reviews)',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: Color(0xFF3A3651),
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  widget.studentsText,
+                                  style: const TextStyle(
+                                    color: Color(0xFF3E395B),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
                               ],
@@ -1094,7 +1043,8 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
                             decoration: BoxDecoration(
                               color: const Color(0xFFFCFCFF),
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: const Color(0xFFE9E7F2)),
+                              border:
+                                  Border.all(color: const Color(0xFFE9E7F2)),
                             ),
                             child: Row(
                               children: [

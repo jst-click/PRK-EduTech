@@ -6,10 +6,12 @@ export const navItems = [
   { path: '/carousel', label: 'Carousel' },
   { path: '/icons', label: 'Icons' },
   { path: '/ebooks', label: 'Ebooks' },
+  { path: '/notes', label: 'Notes' },
   { path: '/tests', label: 'Tests' },
   { path: '/faqs', label: 'FAQ' },
   { path: '/online-classes', label: 'Online Class' },
   { path: '/current-affairs', label: 'Current Affairs' },
+  { path: '/jobs', label: 'Jobs' },
   { path: '/testimonials', label: 'Testimonials' },
   { path: '/cms', label: 'CMS' },
 ]

@@ -110,11 +110,10 @@ class _VideoListScreenState extends State<VideoListScreen> {
 
   void applyFilters() {
     setState(() {
-      filteredVideos = videos.where((video) => video.isLive && video.isYoutubeLive).toList();
+      filteredVideos =
+          videos.where((video) => video.isLive && video.isYoutubeLive).toList();
     });
   }
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -123,9 +122,10 @@ class _VideoListScreenState extends State<VideoListScreen> {
         elevation: 5,
         title: const Text(
           'Youtube Live Videos',
-          style: TextStyle(color: Color(0xFF000435), fontWeight: FontWeight.bold),
+          style:
+              TextStyle(color: Color(0xFF000435), fontWeight: FontWeight.bold),
         ),
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFFFFF3E0),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.white),
@@ -138,18 +138,18 @@ class _VideoListScreenState extends State<VideoListScreen> {
           Expanded(
             child: isLoading
                 ? const Center(
-              child: CircularProgressIndicator(
-                color: Color(0xFFfb7e02),
-              ),
-            )
+                    child: CircularProgressIndicator(
+                      color: Color(0xFFfb7e02),
+                    ),
+                  )
                 : filteredVideos.isEmpty
-                ? const Center(
-              child: Text(
-                'No videos found with the selected filters',
-                style: TextStyle(fontSize: 16, color: Colors.grey),
-              ),
-            )
-                : buildVideoList(),
+                    ? const Center(
+                        child: Text(
+                          'No videos found with the selected filters',
+                          style: TextStyle(fontSize: 16, color: Colors.grey),
+                        ),
+                      )
+                    : buildVideoList(),
           ),
         ],
       ),
@@ -226,7 +226,8 @@ class VideoCard extends StatelessWidget {
                       ),
                       if (video.isLive)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
                             color: Colors.red,
                             borderRadius: BorderRadius.circular(4),
@@ -262,7 +263,8 @@ class VideoCard extends StatelessWidget {
                   Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
                           color: video.isFree
                               ? const Color(0xFF000435).withOpacity(0.1)
@@ -283,7 +285,8 @@ class VideoCard extends StatelessWidget {
                       if (video.isYoutubeLive)
                         Container(
                           margin: const EdgeInsets.only(left: 8),
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
                             color: Colors.red.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(4),
@@ -412,10 +415,10 @@ class _VideoDetailScreenState extends State<VideoDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFFFF3E0),
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFFFFF3E0),
         title: Text(
           widget.video.title,
           style: const TextStyle(color: Color(0xFF000435)),
@@ -467,7 +470,8 @@ class _VideoDetailScreenState extends State<VideoDetailScreen> {
                   Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
                           color: widget.video.isFree
                               ? const Color(0xFF000435).withOpacity(0.1)
@@ -488,7 +492,8 @@ class _VideoDetailScreenState extends State<VideoDetailScreen> {
                       if (widget.video.isLive)
                         Container(
                           margin: const EdgeInsets.only(left: 8),
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
                             color: Colors.red.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(4),
@@ -505,7 +510,8 @@ class _VideoDetailScreenState extends State<VideoDetailScreen> {
                       if (widget.video.isYoutubeLive)
                         Container(
                           margin: const EdgeInsets.only(left: 8),
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
                             color: Colors.red.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(4),

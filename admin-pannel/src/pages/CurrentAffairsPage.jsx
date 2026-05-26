@@ -7,6 +7,7 @@ import { apiRequest } from '../services/apiClient'
 const initialForm = {
   question: '',
   answer: '',
+  img: null,
   source: '',
   publishedAt: '',
 }
@@ -48,14 +49,16 @@ function CurrentAffairsPage() {
     setSaving(true)
     setMessage('')
     try {
-      const payload = {
-        question: form.question.trim(),
-        answer: form.answer.trim(),
-        source: form.source.trim(),
+      const payload = new FormData()
+      payload.append('question', form.question.trim())
+      payload.append('answer', form.answer.trim())
+      payload.append('source', form.source.trim())
+      if (form.img) {
+        payload.append('img', form.img)
       }
 
       if (form.publishedAt) {
-        payload.publishedAt = new Date(form.publishedAt).toISOString()
+        payload.append('publishedAt', new Date(form.publishedAt).toISOString())
       }
 
       if (isEditing) {
@@ -63,6 +66,7 @@ function CurrentAffairsPage() {
           token,
           method: 'PUT',
           body: payload,
+          isFormData: true,
         })
         setMessage('Current affair updated')
       } else {
@@ -70,6 +74,7 @@ function CurrentAffairsPage() {
           token,
           method: 'POST',
           body: payload,
+          isFormData: true,
         })
         setMessage('Current affair created')
       }
@@ -89,10 +94,11 @@ function CurrentAffairsPage() {
     setForm({
       question: item.question || '',
       answer: item.answer || '',
+      img: null,
       source: item.source || '',
       publishedAt: formatDateForInput(item.publishedAt),
     })
-    setMessage('')
+    setMessage('Select a new image only if you want to replace the existing one.')
   }
 
   const handleDelete = async (id) => {
@@ -139,6 +145,19 @@ function CurrentAffairsPage() {
           value={form.source}
           onChange={(event) => setForm((prev) => ({ ...prev, source: event.target.value }))}
         />
+        <label>
+          <span>Image</span>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(event) =>
+              setForm((prev) => ({
+                ...prev,
+                img: event.target.files && event.target.files[0] ? event.target.files[0] : null,
+              }))
+            }
+          />
+        </label>
         <input
           type="datetime-local"
           value={form.publishedAt}
@@ -161,6 +180,7 @@ function CurrentAffairsPage() {
         <table>
           <thead>
             <tr>
+              <th>Image</th>
               <th>Headline</th>
               <th>Details</th>
               <th>Source</th>
@@ -171,12 +191,19 @@ function CurrentAffairsPage() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={5}>Loading current affairs...</td>
+                <td colSpan={6}>Loading current affairs...</td>
               </tr>
             )}
             {!loading &&
               currentAffairs.map((item) => (
                 <tr key={item._id}>
+                  <td>
+                    {item.img ? (
+                      <img src={item.img} alt={item.question} style={{ width: 60, height: 40, objectFit: 'cover' }} />
+                    ) : (
+                      '-'
+                    )}
+                  </td>
                   <td>{item.question}</td>
                   <td>{item.answer}</td>
                   <td>{item.source || '-'}</td>
@@ -195,7 +222,7 @@ function CurrentAffairsPage() {
               ))}
             {!loading && !currentAffairs.length && (
               <tr>
-                <td colSpan={5} className="muted">
+                <td colSpan={6} className="muted">
                   No current affairs found
                 </td>
               </tr>

@@ -19,7 +19,7 @@ class _BatchScreenState extends State<BatchScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFFFF3E0),
       body: Column(
         children: [
           // Slider for Notes and Ebooks

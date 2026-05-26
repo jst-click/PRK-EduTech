@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:testing1/constants.dart';
@@ -14,7 +15,6 @@ import 'package:testing1/Components/Sidebar/LeaderBoard.dart';
 import 'package:testing1/Components/Sidebar/LiveClass.dart';
 import 'package:testing1/Components/Sidebar/PaidCourse.dart';
 import 'package:testing1/Components/Sidebar/Tests.dart';
-import 'package:testing1/Components/Sidebar/TopCourse.dart';
 import 'package:testing1/Components/Sidebar/YoutubeLive.dart';
 
 import '../Components/Sidebar/AllNotesPage.dart';
@@ -31,10 +31,12 @@ class _HomeScreenState extends State<HomeScreen> {
   static const Color _screenColor = Color(0xFFF6F7FC);
 
   // Profile data variables
-  String _userName = 'Guest';
-  String _userEmail = '';
   String? _profileImageUrl;
   List<String> carouselImages = [];
+  final PageController _bannerPageController =
+      PageController(viewportFraction: 1);
+  Timer? _bannerTimer;
+  int _currentBannerIndex = 0;
   bool isLoading = true;
   String errorMessage = '';
 
@@ -115,7 +117,11 @@ class _HomeScreenState extends State<HomeScreen> {
       'title': 'Top Course',
       'subtitle': 'Explore best programs',
       'iconColor': Color(0xFFFFC107),
-      'page': TopCoursePage(),
+      'page': CourseDetailScreen(
+        onlyTopCourses: true,
+        headerTitle: 'Top Courses',
+        headerSubtitle: 'Explore top courses enabled by admin',
+      ),
     },
     {
       'icon': Icons.leaderboard,
@@ -131,6 +137,33 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     fetchUserProfile();
     fetchCarouselImages();
+  }
+
+  @override
+  void dispose() {
+    _bannerTimer?.cancel();
+    _bannerPageController.dispose();
+    super.dispose();
+  }
+
+  void _startBannerAutoSlide() {
+    _bannerTimer?.cancel();
+    if (carouselImages.length <= 1) return;
+
+    _bannerTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+      if (!mounted ||
+          !_bannerPageController.hasClients ||
+          carouselImages.isEmpty) {
+        return;
+      }
+
+      final int nextPage = (_currentBannerIndex + 1) % carouselImages.length;
+      _bannerPageController.animateToPage(
+        nextPage,
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeInOut,
+      );
+    });
   }
 
   Future<void> fetchUserProfile() async {
@@ -154,21 +187,17 @@ class _HomeScreenState extends State<HomeScreen> {
       if (response.statusCode == 200) {
         final profileData = json.decode(response.body);
         setState(() {
-          _userName = profileData['name'] ?? 'Guest';
-          _userEmail = profileData['email'] ?? '';
           _profileImageUrl = profileData['profile']?['photo'];
           isLoading = false;
         });
       } else {
         setState(() {
-          _userName = 'Guest';
           isLoading = false;
         });
       }
     } catch (e) {
       print('Error fetching profile: $e');
       setState(() {
-        _userName = 'Guest';
         isLoading = false;
       });
     }
@@ -192,7 +221,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
         setState(() {
           carouselImages = processedImages;
+          _currentBannerIndex = 0;
         });
+        _startBannerAutoSlide();
       } else {
         throw Exception('Failed to load carousel images');
       }
@@ -350,150 +381,88 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildHeroCard() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        gradient: const LinearGradient(
-          colors: [Color(0xFFECEBFF), Color(0xFFF3EEFF)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Welcome Back! ${_userName.split(' ').first} 👋',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: _primaryColor.withOpacity(0.75),
-                  ),
-                ),
-                if (_userEmail.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(
-                      _userEmail,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: _primaryColor.withOpacity(0.55),
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                const SizedBox(height: 8),
-                RichText(
-                  text: const TextSpan(
-                    style: TextStyle(
-                      fontSize: 19,
-                      height: 1.2,
-                      fontWeight: FontWeight.w800,
-                      color: _primaryColor,
-                    ),
-                    children: [
-                      TextSpan(text: 'Continue Your\n'),
-                      TextSpan(
-                        text: 'Learning ',
-                        style: TextStyle(color: _accentColor),
-                      ),
-                      TextSpan(text: 'Journey'),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Explore courses, watch videos, attend live classes and much more.',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: _primaryColor.withOpacity(0.75),
-                    height: 1.3,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                ElevatedButton(
-                  onPressed: () {
-                    if (menuItems.isNotEmpty) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (context) => menuItems[0]['page']),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(18),
+      child: SizedBox(
+        height: 190,
+        child: carouselImages.isNotEmpty
+            ? Stack(
+                children: [
+                  PageView.builder(
+                    controller: _bannerPageController,
+                    itemCount: carouselImages.length,
+                    onPageChanged: (index) {
+                      setState(() {
+                        _currentBannerIndex = index;
+                      });
+                    },
+                    itemBuilder: (context, index) {
+                      return Image.network(
+                        carouselImages[index],
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        errorBuilder: (_, __, ___) => Container(
+                          color: const Color(0xFFECEBFF),
+                          alignment: Alignment.center,
+                          child: const Icon(
+                            Icons.broken_image_rounded,
+                            size: 64,
+                            color: Color(0xFF4A4ECB),
+                          ),
+                        ),
                       );
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _primaryColor,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(11),
+                    },
+                  ),
+                  if (carouselImages.length > 1)
+                    Positioned(
+                      bottom: 10,
+                      left: 0,
+                      right: 0,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: List.generate(carouselImages.length, (index) {
+                          final bool isActive = index == _currentBannerIndex;
+                          return AnimatedContainer(
+                            duration: const Duration(milliseconds: 220),
+                            margin: const EdgeInsets.symmetric(horizontal: 3),
+                            height: 7,
+                            width: isActive ? 18 : 7,
+                            decoration: BoxDecoration(
+                              color: isActive
+                                  ? Colors.white
+                                  : Colors.white.withOpacity(0.55),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                          );
+                        }),
+                      ),
                     ),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text(
-                        'Resume Learning',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w700, fontSize: 13),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        width: 22,
-                        height: 22,
-                        decoration: const BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.arrow_forward_rounded,
-                          size: 13,
-                          color: _primaryColor,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            width: 104,
-            height: 148,
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.55),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: (_profileImageUrl?.isNotEmpty == true ||
-                    carouselImages.isNotEmpty)
-                ? ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: Image.network(
-                      _profileImageUrl?.isNotEmpty == true
-                          ? _profileImageUrl!
-                          : carouselImages.first,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const Icon(
+                ],
+              )
+            : (_profileImageUrl?.isNotEmpty == true
+                ? Image.network(
+                    _profileImageUrl!,
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    errorBuilder: (_, __, ___) => Container(
+                      color: const Color(0xFFECEBFF),
+                      alignment: Alignment.center,
+                      child: const Icon(
                         Icons.school_rounded,
-                        size: 60,
+                        size: 64,
                         color: Color(0xFF4A4ECB),
                       ),
                     ),
                   )
-                : const Icon(
-                    Icons.school_rounded,
-                    size: 60,
-                    color: Color(0xFF4A4ECB),
-                  ),
-          ),
-        ],
+                : Container(
+                    color: const Color(0xFFECEBFF),
+                    alignment: Alignment.center,
+                    child: const Icon(
+                      Icons.school_rounded,
+                      size: 64,
+                      color: Color(0xFF4A4ECB),
+                    ),
+                  )),
       ),
     );
   }
@@ -625,7 +594,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     value: progress,
                     minHeight: 6,
                     color: _accentColor,
-                    backgroundColor: Colors.white,
+                    backgroundColor: const Color(0xFFFFF3E0),
                   ),
                 ),
               ],

@@ -7,10 +7,12 @@ import CoursesPage from '../pages/CoursesPage'
 import CarouselPage from '../pages/CarouselPage'
 import IconsPage from '../pages/IconsPage'
 import EbooksPage from '../pages/EbooksPage'
+import NotesPage from '../pages/NotesPage'
 import TestsPage from '../pages/TestsPage'
 import FaqsPage from '../pages/FaqsPage'
 import OnlineClassesPage from '../pages/OnlineClassesPage'
 import CurrentAffairsPage from '../pages/CurrentAffairsPage'
+import JobsPage from '../pages/JobsPage'
 import TestimonialsPage from '../pages/TestimonialsPage'
 import CmsPage from '../pages/CmsPage'
 
@@ -57,10 +59,12 @@ function AdminLayout({ user, onLogout }) {
             <Route path="/carousel" element={<CarouselPage />} />
             <Route path="/icons" element={<IconsPage />} />
             <Route path="/ebooks" element={<EbooksPage />} />
+            <Route path="/notes" element={<NotesPage />} />
             <Route path="/tests" element={<TestsPage />} />
             <Route path="/faqs" element={<FaqsPage />} />
             <Route path="/online-classes" element={<OnlineClassesPage />} />
             <Route path="/current-affairs" element={<CurrentAffairsPage />} />
+            <Route path="/jobs" element={<JobsPage />} />
             <Route path="/testimonials" element={<TestimonialsPage />} />
             <Route path="/cms" element={<CmsPage />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />

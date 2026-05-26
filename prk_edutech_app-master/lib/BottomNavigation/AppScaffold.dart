@@ -11,11 +11,7 @@ class AppScaffold extends StatefulWidget {
   final Widget? customBody;
   final String? title;
 
-  const AppScaffold({
-    Key? key,
-    this.customBody,
-    this.title
-  }) : super(key: key);
+  const AppScaffold({Key? key, this.customBody, this.title}) : super(key: key);
 
   @override
   State<AppScaffold> createState() => _AppScaffoldState();
@@ -51,16 +47,17 @@ class _AppScaffoldState extends State<AppScaffold> {
       appBar: AppBar(
         // Keep the default drawer hamburger menu by NOT specifying a custom leading widget
         // This will automatically connect to the drawer
-        iconTheme: IconThemeData(color: primaryColor), // Color for the drawer icon
+        iconTheme:
+            IconThemeData(color: primaryColor), // Color for the drawer icon
         title: widget.title != null
             ? Text(
-          widget.title!,
-          style: const TextStyle(
-            color: primaryColor,
-            fontSize: 18,
-            fontWeight: FontWeight.w500,
-          ),
-        )
+                widget.title!,
+                style: const TextStyle(
+                  color: primaryColor,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w500,
+                ),
+              )
             : null,
         centerTitle: true, // Center the title if present
         actions: [
@@ -95,7 +92,7 @@ class _AppScaffoldState extends State<AppScaffold> {
       //   return Scaffold(
       //     // AppBar with centered logo and side elements
       //     appBar: AppBar(
-      //       backgroundColor: Colors.white, // White background
+      //       backgroundColor: const Color(0xFFFFF3E0), // White background
       //       // Keep the default drawer hamburger menu by NOT specifying a custom leading widget
       //       // This will automatically connect to the drawer
       //       iconTheme: IconThemeData(color: primaryColor), // Color for the drawer icon
@@ -158,11 +155,16 @@ class _AppScaffoldState extends State<AppScaffold> {
             height: 68,
             labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
             destinations: const [
-              NavigationDestination(icon: Icon(Icons.home_rounded), label: 'Home'),
-              NavigationDestination(icon: Icon(Icons.menu_book_rounded), label: 'Books'),
-              NavigationDestination(icon: Icon(Icons.storefront_rounded), label: 'Store'),
-              NavigationDestination(icon: Icon(Icons.work_outline_rounded), label: 'Jobs'),
-              NavigationDestination(icon: Icon(Icons.person_rounded), label: 'Profile'),
+              NavigationDestination(
+                  icon: Icon(Icons.home_rounded), label: 'Home'),
+              NavigationDestination(
+                  icon: Icon(Icons.menu_book_rounded), label: 'Books'),
+              NavigationDestination(
+                  icon: Icon(Icons.school_rounded), label: 'Course'),
+              NavigationDestination(
+                  icon: Icon(Icons.work_outline_rounded), label: 'Jobs'),
+              NavigationDestination(
+                  icon: Icon(Icons.person_rounded), label: 'Profile'),
             ],
           ),
         ),

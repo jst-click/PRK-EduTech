@@ -282,6 +282,10 @@ const courseSchema = new mongoose.Schema({
     enum: ['Beginner', 'Intermediate', 'Advanced'], 
     default: 'Beginner' 
   },
+  topCourseEnabled: {
+    type: Boolean,
+    default: false,
+  },
   createdBy: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User' 
@@ -297,6 +301,15 @@ const courseSchema = new mongoose.Schema({
 }, { 
   timestamps: true 
 });
+
+const parseBooleanFlag = (value, fallback = false) => {
+  if (value === undefined || value === null || value === '') return fallback;
+  if (typeof value === 'boolean') return value;
+  const normalized = String(value).trim().toLowerCase();
+  if (['true', '1', 'yes', 'enabled', 'active'].includes(normalized)) return true;
+  if (['false', '0', 'no', 'disabled', 'inactive'].includes(normalized)) return false;
+  return fallback;
+};
 
 // Pre-save hook to generate unique courseId if not provided
 courseSchema.pre('save', async function(next) {
@@ -404,13 +417,24 @@ const iconSchema = new mongoose.Schema({
   label: String
 });
 
-const bookSchema = new mongoose.Schema({
-  bookName: { type: String, required: true },
-  author: { type: String, required: true },
-  description: { type: String, required: true },
-  thumbnail: { type: String },
-  pdf: { type: String }
-});
+const bookSchema = new mongoose.Schema(
+  {
+    bookName: { type: String, required: true, trim: true },
+    author: { type: String, required: true, trim: true },
+    description: { type: String, required: true, trim: true },
+    contentType: { type: String, enum: ['ebook', 'notes'], default: 'ebook' },
+    subject: { type: String, default: 'General', trim: true },
+    difficultyLevel: {
+      type: String,
+      enum: ['beginner', 'intermediate', 'advanced', 'general'],
+      default: 'general',
+    },
+    pricing: { type: String, enum: ['free', 'paid'], default: 'free' },
+    thumbnail: { type: String, default: '' },
+    pdf: { type: String, default: '' },
+  },
+  { timestamps: true }
+);
 
 const cmsSchema = new mongoose.Schema(
   {
@@ -432,8 +456,24 @@ const currentAffairSchema = new mongoose.Schema(
   {
     question: { type: String, required: true, trim: true },
     answer: { type: String, required: true, trim: true },
+    img: { type: String, default: '', trim: true },
     source: { type: String, default: '', trim: true },
     publishedAt: { type: Date, default: Date.now },
+    isActive: { type: Boolean, default: true },
+  },
+  { timestamps: true }
+);
+
+const jobListingSchema = new mongoose.Schema(
+  {
+    title: { type: String, required: true, trim: true },
+    organisationName: { type: String, required: true, trim: true },
+    postName: { type: String, required: true, trim: true },
+    noOfVacancies: { type: Number, required: true, min: 1 },
+    qualificationNeeded: { type: String, required: true, trim: true },
+    lastDateToApply: { type: Date, required: true },
+    linkToApply: { type: String, required: true, trim: true },
+    sector: { type: String, enum: ['govt', 'pvt'], required: true },
     isActive: { type: Boolean, default: true },
   },
   { timestamps: true }
@@ -528,6 +568,7 @@ const Book = mongoose.model('Book', bookSchema);
 const CMS = mongoose.model('CMS', cmsSchema);
 const FAQ = mongoose.model('FAQ', faqSchema);
 const CurrentAffair = mongoose.model('CurrentAffair', currentAffairSchema);
+const JobListing = mongoose.model('JobListing', jobListingSchema);
 const Testimonial = mongoose.model('Testimonial', testimonialSchema);
 const OnlineClass = mongoose.model('OnlineClass', onlineClassSchema);
 const YoutubeLink = mongoose.model('YoutubeLink', youtubeLinkSchema);
@@ -1479,6 +1520,10 @@ app.post('/api/profile/parents', authenticateToken, async (req, res) => {
         isFree: req.body.isFree === 'true',
         price: req.body.price || 0,
         difficulty: req.body.difficulty || 'Beginner',
+        topCourseEnabled: parseBooleanFlag(
+          req.body.topCourseEnabled ?? req.body.topCourse ?? req.body.status,
+          false
+        ),
         createdBy: req.user.userId
       };
   
@@ -1554,6 +1599,16 @@ app.post('/api/profile/parents', authenticateToken, async (req, res) => {
         : course.isFree;
       course.price = req.body.price || course.price;
       course.difficulty = req.body.difficulty || course.difficulty;
+      if (
+        req.body.topCourseEnabled !== undefined ||
+        req.body.topCourse !== undefined ||
+        req.body.status !== undefined
+      ) {
+        course.topCourseEnabled = parseBooleanFlag(
+          req.body.topCourseEnabled ?? req.body.topCourse ?? req.body.status,
+          course.topCourseEnabled
+        );
+      }
       course.updatedAt = new Date();
   
       await course.save();
@@ -2511,9 +2566,164 @@ app.delete('/icons/:id', async (req, res) => {
   }
 });
 
+const allowedContentTypes = new Set(['ebook', 'notes']);
+const allowedDifficultyLevels = new Set(['beginner', 'intermediate', 'advanced', 'general']);
+const allowedPricing = new Set(['free', 'paid']);
+
+function asText(value, fallback = '') {
+  const text = (value || '').toString().trim();
+  return text || fallback;
+}
+
+function normalizeContentType(value, fallback = 'ebook') {
+  const normalized = asText(value, fallback).toLowerCase();
+  return allowedContentTypes.has(normalized) ? normalized : fallback;
+}
+
+function normalizeDifficultyLevel(value, fallback = 'general') {
+  const normalized = asText(value, fallback).toLowerCase();
+  return allowedDifficultyLevels.has(normalized) ? normalized : fallback;
+}
+
+function normalizePricing(value, fallback = 'free') {
+  const normalized = asText(value, fallback).toLowerCase();
+  return allowedPricing.has(normalized) ? normalized : fallback;
+}
+
+function buildBookPayload(body, files, fallbackContentType = 'ebook') {
+  return {
+    bookName: asText(body.bookName),
+    author: asText(body.author),
+    description: asText(body.description),
+    contentType: normalizeContentType(body.contentType, fallbackContentType),
+    subject: asText(body.subject, 'General'),
+    difficultyLevel: normalizeDifficultyLevel(body.difficultyLevel),
+    pricing: normalizePricing(body.pricing),
+    thumbnail: files && files['thumbnail'] ? files['thumbnail'][0].path : '',
+    pdf: files && files['pdf'] ? files['pdf'][0].path : '',
+  };
+}
+
+function buildBookUpdatePayload(body, files, fallbackContentType = 'ebook') {
+  const updateData = {
+    bookName: asText(body.bookName),
+    author: asText(body.author),
+    description: asText(body.description),
+    contentType: normalizeContentType(body.contentType, fallbackContentType),
+    subject: asText(body.subject, 'General'),
+    difficultyLevel: normalizeDifficultyLevel(body.difficultyLevel),
+    pricing: normalizePricing(body.pricing),
+  };
+
+  if (files && files['thumbnail']) {
+    updateData.thumbnail = files['thumbnail'][0].path;
+  }
+
+  if (files && files['pdf']) {
+    updateData.pdf = files['pdf'][0].path;
+  }
+
+  return updateData;
+}
+
+async function deleteBookById(id) {
+  const book = await Book.findByIdAndDelete(id);
+  if (!book) return null;
+
+  if (book.thumbnail) {
+    await cloudinary.uploader.destroy(
+      book.thumbnail.split('/').pop().split('.')[0],
+      { resource_type: 'image' }
+    );
+  }
+
+  if (book.pdf) {
+    await cloudinary.uploader.destroy(
+      book.pdf.split('/').pop().split('.')[0],
+      { resource_type: 'raw' }
+    );
+  }
+
+  return book;
+}
+
+function resourceQueryFromRequest(req) {
+  const contentType = asText(req.query.contentType).toLowerCase();
+  if (allowedContentTypes.has(contentType)) {
+    return { contentType };
+  }
+  return {};
+}
+
+app.get('/api/resources', async (req, res) => {
+  try {
+    const resources = await Book.find(resourceQueryFromRequest(req)).sort({ createdAt: -1 });
+    res.json(resources);
+  } catch (error) {
+    console.error('Fetch Resources Error:', error);
+    res.status(500).json({ message: 'Error fetching resources', error: error.message });
+  }
+});
+
+app.get('/api/resources/:id', async (req, res) => {
+  try {
+    const resource = await Book.findById(req.params.id);
+    if (!resource) {
+      return res.status(404).json({ message: 'Resource not found' });
+    }
+    res.json(resource);
+  } catch (error) {
+    console.error('Fetch Resource Error:', error);
+    res.status(500).json({ message: 'Error fetching resource', error: error.message });
+  }
+});
+
+app.post('/api/resources', multiUpload, async (req, res) => {
+  try {
+    const payload = buildBookPayload(req.body, req.files);
+    const newResource = new Book(payload);
+    const savedResource = await newResource.save();
+    res.status(201).json(savedResource);
+  } catch (error) {
+    console.error('Create Resource Error:', error);
+    res.status(400).json({ message: 'Error creating resource', error: error.message });
+  }
+});
+
+app.put('/api/resources/:id', multiUpload, async (req, res) => {
+  try {
+    const updateData = buildBookUpdatePayload(req.body, req.files);
+    const updatedResource = await Book.findByIdAndUpdate(req.params.id, updateData, { new: true });
+
+    if (!updatedResource) {
+      return res.status(404).json({ message: 'Resource not found' });
+    }
+
+    res.json(updatedResource);
+  } catch (error) {
+    console.error('Update Resource Error:', error);
+    res.status(400).json({ message: 'Error updating resource', error: error.message });
+  }
+});
+
+app.delete('/api/resources/:id', async (req, res) => {
+  try {
+    const resource = await deleteBookById(req.params.id);
+    if (!resource) {
+      return res.status(404).json({ message: 'Resource not found' });
+    }
+    res.json({ message: 'Resource deleted successfully' });
+  } catch (error) {
+    console.error('Delete Resource Error:', error);
+    res.status(500).json({ message: 'Error deleting resource', error: error.message });
+  }
+});
+
 app.get('/api/ebooks', async (req, res) => {
   try {
-    const books = await Book.find();
+    const books = await Book.find({
+      $or: [{ contentType: 'ebook' }, { contentType: { $exists: false } }, { contentType: '' }],
+    }).sort({ createdAt: -1 });
     res.json(books);
   } catch (error) {
     console.error('Fetch Books Error:', error);
@@ -2575,20 +2785,10 @@ app.get('/api/ebooks/:id/download-url', async (req, res) => {
 // POST new book
 app.post('/api/ebooks', multiUpload, async (req, res) => {
   try {
-    const { bookName, author, description } = req.body;
-    
-    const newBook = new Book({
-      bookName,
-      author,
-      description,
-      thumbnail: req.files && req.files['thumbnail'] 
-        ? req.files['thumbnail'][0].path 
-        : '',
-      pdf: req.files && req.files['pdf'] 
-        ? req.files['pdf'][0].path 
-        : ''
-    });
+    const payload = buildBookPayload(req.body, req.files, 'ebook');
+    payload.contentType = 'ebook';
 
+    const newBook = new Book(payload);
     const savedBook = await newBook.save();
     res.status(201).json(savedBook);
   } catch (error) {
@@ -2600,25 +2800,10 @@ app.post('/api/ebooks', multiUpload, async (req, res) => {
 // PUT update book
 app.put('/api/ebooks/:id', multiUpload, async (req, res) => {
   try {
-    const { bookName, author, description } = req.body;
-    
-    const updateData = { bookName, author, description };
+    const updateData = buildBookUpdatePayload(req.body, req.files, 'ebook');
+    updateData.contentType = 'ebook';
 
-    // Update thumbnail if new file is uploaded
-    if (req.files && req.files['thumbnail']) {
-      updateData.thumbnail = req.files['thumbnail'][0].path;
-    }
-
-    // Update PDF if new file is uploaded
-    if (req.files && req.files['pdf']) {
-      updateData.pdf = req.files['pdf'][0].path;
-    }
-
-    const updatedBook = await Book.findByIdAndUpdate(
-      req.params.id, 
-      updateData, 
-      { new: true }
-    );
+    const updatedBook = await Book.findByIdAndUpdate(req.params.id, updateData, { new: true });
 
     if (!updatedBook) {
       return res.status(404).json({ message: 'Book not found' });
@@ -2634,25 +2819,10 @@ app.put('/api/ebooks/:id', multiUpload, async (req, res) => {
 // DELETE book
 app.delete('/api/ebooks/:id', async (req, res) => {
   try {
-    const book = await Book.findByIdAndDelete(req.params.id);
-    
+    const book = await deleteBookById(req.params.id);
+
     if (!book) {
       return res.status(404).json({ message: 'Book not found' });
-    }
-    
-    // Optional: Delete files from Cloudinary
-    if (book.thumbnail) {
-      await cloudinary.uploader.destroy(
-        book.thumbnail.split('/').pop().split('.')[0],
-        { resource_type: 'image' }
-      );
-    }
-    
-    if (book.pdf) {
-      await cloudinary.uploader.destroy(
-        book.pdf.split('/').pop().split('.')[0],
-        { resource_type: 'raw' }
-      );
     }
 
     res.json({ message: 'Book deleted successfully' });
@@ -2780,10 +2950,11 @@ app.get('/api/current-affairs', async (req, res) => {
   }
 });
 
-app.post('/api/current-affairs', authenticateToken, async (req, res) => {
+app.post('/api/current-affairs', authenticateToken, upload.single('img'), async (req, res) => {
   try {
     const question = String(req.body.question || '').trim();
     const answer = String(req.body.answer || '').trim();
+    const img = String(req.file?.path || req.body.img || '').trim();
     const source = String(req.body.source || '').trim();
     const publishedAt = req.body.publishedAt ? new Date(req.body.publishedAt) : new Date();
 
@@ -2798,6 +2969,7 @@ app.post('/api/current-affairs', authenticateToken, async (req, res) => {
     const currentAffair = await CurrentAffair.create({
       question,
       answer,
+      img,
       source,
       publishedAt,
       isActive: true,
@@ -2808,30 +2980,46 @@ app.post('/api/current-affairs', authenticateToken, async (req, res) => {
   }
 });
 
-app.put('/api/current-affairs/:id', authenticateToken, async (req, res) => {
+app.put('/api/current-affairs/:id', authenticateToken, upload.single('img'), async (req, res) => {
   try {
-    const question = String(req.body.question || '').trim();
-    const answer = String(req.body.answer || '').trim();
-    const source = String(req.body.source || '').trim();
+    const hasQuestion = typeof req.body.question !== 'undefined';
+    const hasAnswer = typeof req.body.answer !== 'undefined';
+    const hasSource = typeof req.body.source !== 'undefined';
+    const question = hasQuestion ? String(req.body.question || '').trim() : undefined;
+    const answer = hasAnswer ? String(req.body.answer || '').trim() : undefined;
+    const img = String(req.file?.path || req.body.img || '').trim();
+    const source = hasSource ? String(req.body.source || '').trim() : undefined;
     const publishedAt = req.body.publishedAt ? new Date(req.body.publishedAt) : undefined;
 
-    if (!question || !answer) {
-      return res.status(400).json({ message: 'Question and answer are required' });
+    if (hasQuestion && !question) {
+      return res.status(400).json({ message: 'Question is required' });
+    }
+
+    if (hasAnswer && !answer) {
+      return res.status(400).json({ message: 'Answer is required' });
     }
 
     if (publishedAt && Number.isNaN(publishedAt.getTime())) {
       return res.status(400).json({ message: 'Invalid published date' });
     }
 
-    const payload = {
-      question,
-      answer,
-      source,
-      isActive: true,
-    };
+    const payload = { isActive: true };
+
+    if (hasQuestion) {
+      payload.question = question;
+    }
+    if (hasAnswer) {
+      payload.answer = answer;
+    }
+    if (hasSource) {
+      payload.source = source;
+    }
 
     if (publishedAt) {
       payload.publishedAt = publishedAt;
+    }
+    if (img) {
+      payload.img = img;
     }
 
     const currentAffair = await CurrentAffair.findByIdAndUpdate(req.params.id, payload, {
@@ -2858,6 +3046,170 @@ app.delete('/api/current-affairs/:id', authenticateToken, async (req, res) => {
     return res.json({ message: 'Current affair deleted successfully' });
   } catch (error) {
     return res.status(500).json({ message: 'Error deleting current affair', error: error.message });
+  }
+});
+
+function normalizeJobSector(value) {
+  const sector = String(value || '').trim().toLowerCase();
+  if (sector === 'govt' || sector === 'government') return 'govt';
+  if (sector === 'pvt' || sector === 'private') return 'pvt';
+  return '';
+}
+
+app.get('/api/jobs', async (req, res) => {
+  try {
+    const requestedSector = normalizeJobSector(req.query.sector);
+    const filters = { isActive: true };
+    if (requestedSector) {
+      filters.sector = requestedSector;
+    }
+
+    const jobs = await JobListing.find(filters).sort({ createdAt: -1 });
+    return res.json(jobs);
+  } catch (error) {
+    return res.status(500).json({ message: 'Error fetching jobs', error: error.message });
+  }
+});
+
+app.get('/api/jobs/:id', async (req, res) => {
+  try {
+    const job = await JobListing.findById(req.params.id);
+    if (!job || !job.isActive) {
+      return res.status(404).json({ message: 'Job not found' });
+    }
+    return res.json(job);
+  } catch (error) {
+    return res.status(500).json({ message: 'Error fetching job', error: error.message });
+  }
+});
+
+app.post('/api/jobs', authenticateToken, async (req, res) => {
+  try {
+    const title = String(req.body.title || '').trim();
+    const organisationName = String(req.body.organisationName || '').trim();
+    const postName = String(req.body.postName || '').trim();
+    const noOfVacancies = Number(req.body.noOfVacancies);
+    const qualificationNeeded = String(req.body.qualificationNeeded || '').trim();
+    const lastDateToApply = new Date(req.body.lastDateToApply);
+    const linkToApply = String(req.body.linkToApply || '').trim();
+    const sector = normalizeJobSector(req.body.sector);
+
+    if (!title || !organisationName || !postName || !qualificationNeeded || !linkToApply) {
+      return res.status(400).json({ message: 'All job fields are required' });
+    }
+
+    if (!Number.isInteger(noOfVacancies) || noOfVacancies <= 0) {
+      return res.status(400).json({ message: 'No. of vacancies must be a positive whole number' });
+    }
+
+    if (Number.isNaN(lastDateToApply.getTime())) {
+      return res.status(400).json({ message: 'Invalid last date to apply' });
+    }
+
+    if (!sector) {
+      return res.status(400).json({ message: 'Sector must be govt or pvt' });
+    }
+
+    const job = await JobListing.create({
+      title,
+      organisationName,
+      postName,
+      noOfVacancies,
+      qualificationNeeded,
+      lastDateToApply,
+      linkToApply,
+      sector,
+      isActive: true,
+    });
+
+    return res.status(201).json(job);
+  } catch (error) {
+    return res.status(500).json({ message: 'Error creating job', error: error.message });
+  }
+});
+
+app.put('/api/jobs/:id', authenticateToken, async (req, res) => {
+  try {
+    const payload = {};
+
+    if (typeof req.body.title !== 'undefined') {
+      const title = String(req.body.title || '').trim();
+      if (!title) return res.status(400).json({ message: 'Title is required' });
+      payload.title = title;
+    }
+
+    if (typeof req.body.organisationName !== 'undefined') {
+      const organisationName = String(req.body.organisationName || '').trim();
+      if (!organisationName) return res.status(400).json({ message: 'Organisation name is required' });
+      payload.organisationName = organisationName;
+    }
+
+    if (typeof req.body.postName !== 'undefined') {
+      const postName = String(req.body.postName || '').trim();
+      if (!postName) return res.status(400).json({ message: 'Post name is required' });
+      payload.postName = postName;
+    }
+
+    if (typeof req.body.noOfVacancies !== 'undefined') {
+      const noOfVacancies = Number(req.body.noOfVacancies);
+      if (!Number.isInteger(noOfVacancies) || noOfVacancies <= 0) {
+        return res.status(400).json({ message: 'No. of vacancies must be a positive whole number' });
+      }
+      payload.noOfVacancies = noOfVacancies;
+    }
+
+    if (typeof req.body.qualificationNeeded !== 'undefined') {
+      const qualificationNeeded = String(req.body.qualificationNeeded || '').trim();
+      if (!qualificationNeeded) return res.status(400).json({ message: 'Qualification is required' });
+      payload.qualificationNeeded = qualificationNeeded;
+    }
+
+    if (typeof req.body.lastDateToApply !== 'undefined') {
+      const lastDateToApply = new Date(req.body.lastDateToApply);
+      if (Number.isNaN(lastDateToApply.getTime())) {
+        return res.status(400).json({ message: 'Invalid last date to apply' });
+      }
+      payload.lastDateToApply = lastDateToApply;
+    }
+
+    if (typeof req.body.linkToApply !== 'undefined') {
+      const linkToApply = String(req.body.linkToApply || '').trim();
+      if (!linkToApply) return res.status(400).json({ message: 'Apply link is required' });
+      payload.linkToApply = linkToApply;
+    }
+
+    if (typeof req.body.sector !== 'undefined') {
+      const sector = normalizeJobSector(req.body.sector);
+      if (!sector) return res.status(400).json({ message: 'Sector must be govt or pvt' });
+      payload.sector = sector;
+    }
+
+    payload.isActive = true;
+
+    const job = await JobListing.findByIdAndUpdate(req.params.id, payload, {
+      new: true,
+      runValidators: true,
+    });
+
+    if (!job) {
+      return res.status(404).json({ message: 'Job not found' });
+    }
+
+    return res.json(job);
+  } catch (error) {
+    return res.status(500).json({ message: 'Error updating job', error: error.message });
+  }
+});
+
+app.delete('/api/jobs/:id', authenticateToken, async (req, res) => {
+  try {
+    const job = await JobListing.findByIdAndDelete(req.params.id);
+    if (!job) {
+      return res.status(404).json({ message: 'Job not found' });
+    }
+    return res.json({ message: 'Job deleted successfully' });
+  } catch (error) {
+    return res.status(500).json({ message: 'Error deleting job', error: error.message });
   }
 });
 

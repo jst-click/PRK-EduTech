@@ -26,6 +26,7 @@ class Experience {
   String location = '';
   String description = '';
 }
+
 class ResumeBuilderApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -39,9 +40,12 @@ class ResumeBuilderApp extends StatelessWidget {
           secondary: Color(0xFFFB7E02),
         ),
         appBarTheme: AppBarTheme(
-          backgroundColor: Colors.white,
+          backgroundColor: const Color(0xFFFFF3E0),
           elevation: 0,
-          titleTextStyle: TextStyle(color: Color(0xFF000435), fontSize: 20, fontWeight: FontWeight.bold),
+          titleTextStyle: TextStyle(
+              color: Color(0xFF000435),
+              fontSize: 20,
+              fontWeight: FontWeight.bold),
           iconTheme: IconThemeData(color: Color(0xFF000435)),
         ),
         scaffoldBackgroundColor: Colors.white,
@@ -80,7 +84,7 @@ class _ResumeBuilderHomeState extends State<ResumeBuilderHome> {
     return Scaffold(
       appBar: AppBar(
         title: Text('Resume Builder'),
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFFFFF3E0),
         iconTheme: IconThemeData(color: Color(0xFF000435)),
         actions: [
           if (_resumeId.isNotEmpty)
@@ -93,102 +97,92 @@ class _ResumeBuilderHomeState extends State<ResumeBuilderHome> {
       body: _isLoading
           ? Center(child: CircularProgressIndicator(color: Color(0xFFFB7E02)))
           : SingleChildScrollView(
-        padding: EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildSectionTitle('Personal Information'),
-              _buildTextField(_nameController, 'Full Name', Icons.person),
-              _buildTextField(_phoneController, 'Phone Number', Icons.phone),
-              _buildTextField(_addressController, 'Address', Icons.home),
-              _buildTextField(_emailController, 'Email ID', Icons.email),
-
-              _buildSectionTitle('Professional Summary'),
-              _buildTextField(_summaryController, 'Summary', Icons.description,
-                  maxLines: 4),
-
-              _buildSectionTitle('Education'),
-              ...educationList
-                  .map((edu) => _buildEducationFields(edu))
-                  .toList(),
-              _buildAddButton('Add Education', () {
-                setState(() {
-                  educationList.add(Education());
-                });
-              }),
-
-              _buildSectionTitle('Experience'),
-              ...experienceList
-                  .map((exp) => _buildExperienceFields(exp))
-                  .toList(),
-              _buildAddButton('Add Experience', () {
-                setState(() {
-                  experienceList.add(Experience());
-                });
-              }),
-
-              _buildSectionTitle('Key Skills'),
-              ...skillsList
-                  .asMap()
-                  .entries
-                  .map((entry) {
-                return _buildListItemField(
-                  entry.value,
-                      (value) {
-                    skillsList[entry.key] = value;
-                  },
-                  'Skill',
-                  Icons.star,
-                  onRemove: entry.key > 0
-                      ? () {
-                    setState(() {
-                      skillsList.removeAt(entry.key);
-                    });
-                  }
-                      : null,
-                );
-              }).toList(),
-              _buildAddButton('Add Skill', () {
-                setState(() {
-                  skillsList.add('');
-                });
-              }),
-
-              _buildSectionTitle('Hobbies & Interests'),
-              ...hobbiesList
-                  .asMap()
-                  .entries
-                  .map((entry) {
-                return _buildListItemField(
-                  entry.value,
-                      (value) {
-                    hobbiesList[entry.key] = value;
-                  },
-                  'Hobby or Interest',
-                  Icons.favorite,
-                  onRemove: entry.key > 0
-                      ? () {
-                    setState(() {
-                      hobbiesList.removeAt(entry.key);
-                    });
-                  }
-                      : null,
-                );
-              }).toList(),
-              _buildAddButton('Add Hobby', () {
-                setState(() {
-                  hobbiesList.add('');
-                });
-              }),
-
-              SizedBox(height: 20),
-              _buildSubmitButton(),
-            ],
-          ),
-        ),
-      ),
+              padding: EdgeInsets.all(16.0),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildSectionTitle('Personal Information'),
+                    _buildTextField(_nameController, 'Full Name', Icons.person),
+                    _buildTextField(
+                        _phoneController, 'Phone Number', Icons.phone),
+                    _buildTextField(_addressController, 'Address', Icons.home),
+                    _buildTextField(_emailController, 'Email ID', Icons.email),
+                    _buildSectionTitle('Professional Summary'),
+                    _buildTextField(
+                        _summaryController, 'Summary', Icons.description,
+                        maxLines: 4),
+                    _buildSectionTitle('Education'),
+                    ...educationList
+                        .map((edu) => _buildEducationFields(edu))
+                        .toList(),
+                    _buildAddButton('Add Education', () {
+                      setState(() {
+                        educationList.add(Education());
+                      });
+                    }),
+                    _buildSectionTitle('Experience'),
+                    ...experienceList
+                        .map((exp) => _buildExperienceFields(exp))
+                        .toList(),
+                    _buildAddButton('Add Experience', () {
+                      setState(() {
+                        experienceList.add(Experience());
+                      });
+                    }),
+                    _buildSectionTitle('Key Skills'),
+                    ...skillsList.asMap().entries.map((entry) {
+                      return _buildListItemField(
+                        entry.value,
+                        (value) {
+                          skillsList[entry.key] = value;
+                        },
+                        'Skill',
+                        Icons.star,
+                        onRemove: entry.key > 0
+                            ? () {
+                                setState(() {
+                                  skillsList.removeAt(entry.key);
+                                });
+                              }
+                            : null,
+                      );
+                    }).toList(),
+                    _buildAddButton('Add Skill', () {
+                      setState(() {
+                        skillsList.add('');
+                      });
+                    }),
+                    _buildSectionTitle('Hobbies & Interests'),
+                    ...hobbiesList.asMap().entries.map((entry) {
+                      return _buildListItemField(
+                        entry.value,
+                        (value) {
+                          hobbiesList[entry.key] = value;
+                        },
+                        'Hobby or Interest',
+                        Icons.favorite,
+                        onRemove: entry.key > 0
+                            ? () {
+                                setState(() {
+                                  hobbiesList.removeAt(entry.key);
+                                });
+                              }
+                            : null,
+                      );
+                    }).toList(),
+                    _buildAddButton('Add Hobby', () {
+                      setState(() {
+                        hobbiesList.add('');
+                      });
+                    }),
+                    SizedBox(height: 20),
+                    _buildSubmitButton(),
+                  ],
+                ),
+              ),
+            ),
     );
   }
 
@@ -206,11 +200,12 @@ class _ResumeBuilderHomeState extends State<ResumeBuilderHome> {
     );
   }
 
-  Widget _buildTextField(TextEditingController controller,
-      String label,
-      IconData icon, {
-        int maxLines = 1,
-      }) {
+  Widget _buildTextField(
+    TextEditingController controller,
+    String label,
+    IconData icon, {
+    int maxLines = 1,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12.0),
       child: TextFormField(
@@ -237,12 +232,13 @@ class _ResumeBuilderHomeState extends State<ResumeBuilderHome> {
     );
   }
 
-  Widget _buildListItemField(String initialValue,
-      Function(String) onChanged,
-      String label,
-      IconData icon, {
-        Function()? onRemove,
-      }) {
+  Widget _buildListItemField(
+    String initialValue,
+    Function(String) onChanged,
+    String label,
+    IconData icon, {
+    Function()? onRemove,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12.0),
       child: Row(
@@ -320,9 +316,7 @@ class _ResumeBuilderHomeState extends State<ResumeBuilderHome> {
               ),
               onChanged: (value) => education.degree = value,
               validator: (value) =>
-              value!.isEmpty
-                  ? 'Please enter degree'
-                  : null,
+                  value!.isEmpty ? 'Please enter degree' : null,
             ),
             SizedBox(height: 10),
             TextFormField(
@@ -334,9 +328,7 @@ class _ResumeBuilderHomeState extends State<ResumeBuilderHome> {
               ),
               onChanged: (value) => education.college = value,
               validator: (value) =>
-              value!.isEmpty
-                  ? 'Please enter college'
-                  : null,
+                  value!.isEmpty ? 'Please enter college' : null,
             ),
             SizedBox(height: 10),
             TextFormField(
@@ -348,9 +340,7 @@ class _ResumeBuilderHomeState extends State<ResumeBuilderHome> {
               ),
               onChanged: (value) => education.location = value,
               validator: (value) =>
-              value!.isEmpty
-                  ? 'Please enter location'
-                  : null,
+                  value!.isEmpty ? 'Please enter location' : null,
             ),
             SizedBox(height: 10),
             TextFormField(
@@ -428,9 +418,7 @@ class _ResumeBuilderHomeState extends State<ResumeBuilderHome> {
               ),
               onChanged: (value) => experience.company = value,
               validator: (value) =>
-              value!.isEmpty
-                  ? 'Please enter company'
-                  : null,
+                  value!.isEmpty ? 'Please enter company' : null,
             ),
             SizedBox(height: 10),
             TextFormField(
@@ -442,9 +430,7 @@ class _ResumeBuilderHomeState extends State<ResumeBuilderHome> {
               ),
               onChanged: (value) => experience.position = value,
               validator: (value) =>
-              value!.isEmpty
-                  ? 'Please enter position'
-                  : null,
+                  value!.isEmpty ? 'Please enter position' : null,
             ),
             SizedBox(height: 10),
             TextFormField(
@@ -456,9 +442,7 @@ class _ResumeBuilderHomeState extends State<ResumeBuilderHome> {
               ),
               onChanged: (value) => experience.startDate = value,
               validator: (value) =>
-              value!.isEmpty
-                  ? 'Please enter start date'
-                  : null,
+                  value!.isEmpty ? 'Please enter start date' : null,
             ),
             SizedBox(height: 10),
             TextFormField(
@@ -559,24 +543,26 @@ class _ResumeBuilderHomeState extends State<ResumeBuilderHome> {
           'address': _addressController.text,
           'email': _emailController.text,
           'summary': _summaryController.text,
-          'education': educationList.map((edu) =>
-          {
-            'degree': edu.degree,
-            'college': edu.college,
-            'location': edu.location,
-            'gpa': edu.gpa,
-            'coursework': edu.coursework,
-            'title': edu.title,
-          }).toList(),
-          'experience': experienceList.map((exp) =>
-          {
-            'company': exp.company,
-            'position': exp.position,
-            'startDate': exp.startDate,
-            'endDate': exp.endDate,
-            'location': exp.location,
-            'description': exp.description,
-          }).toList(),
+          'education': educationList
+              .map((edu) => {
+                    'degree': edu.degree,
+                    'college': edu.college,
+                    'location': edu.location,
+                    'gpa': edu.gpa,
+                    'coursework': edu.coursework,
+                    'title': edu.title,
+                  })
+              .toList(),
+          'experience': experienceList
+              .map((exp) => {
+                    'company': exp.company,
+                    'position': exp.position,
+                    'startDate': exp.startDate,
+                    'endDate': exp.endDate,
+                    'location': exp.location,
+                    'description': exp.description,
+                  })
+              .toList(),
           'skills': skillsList,
           'hobbies': hobbiesList,
         };
@@ -643,7 +629,8 @@ class _ResumeBuilderHomeState extends State<ResumeBuilderHome> {
       if (response.statusCode != 200) {
         final responseData = jsonDecode(response.body);
         final message = responseData is Map<String, dynamic>
-            ? (responseData['message']?.toString() ?? 'Failed to fetch resume data')
+            ? (responseData['message']?.toString() ??
+                'Failed to fetch resume data')
             : 'Failed to fetch resume data';
         throw Exception(message);
       }
@@ -686,16 +673,19 @@ class _ResumeBuilderHomeState extends State<ResumeBuilderHome> {
                       pw.Row(
                         mainAxisAlignment: pw.MainAxisAlignment.center,
                         children: [
-                          pw.Text(resume['email'], style: pw.TextStyle(
-                              fontSize: 10, color: PdfColors.white)),
-                          pw.Text(' | ', style: pw.TextStyle(color: PdfColors
-                              .white)),
-                          pw.Text(resume['phone'], style: pw.TextStyle(
-                              fontSize: 10, color: PdfColors.white)),
-                          pw.Text(' | ', style: pw.TextStyle(color: PdfColors
-                              .white)),
-                          pw.Text(resume['address'], style: pw.TextStyle(
-                              fontSize: 10, color: PdfColors.white)),
+                          pw.Text(resume['email'],
+                              style: pw.TextStyle(
+                                  fontSize: 10, color: PdfColors.white)),
+                          pw.Text(' | ',
+                              style: pw.TextStyle(color: PdfColors.white)),
+                          pw.Text(resume['phone'],
+                              style: pw.TextStyle(
+                                  fontSize: 10, color: PdfColors.white)),
+                          pw.Text(' | ',
+                              style: pw.TextStyle(color: PdfColors.white)),
+                          pw.Text(resume['address'],
+                              style: pw.TextStyle(
+                                  fontSize: 10, color: PdfColors.white)),
                         ],
                       ),
                     ],
@@ -717,27 +707,27 @@ class _ResumeBuilderHomeState extends State<ResumeBuilderHome> {
                 pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: List<pw.Widget>.from(
-                    (resume['education'] as List).map((edu) =>
-                        pw.Container(
+                    (resume['education'] as List).map((edu) => pw.Container(
                           margin: const pw.EdgeInsets.only(bottom: 8),
                           child: pw.Column(
                             crossAxisAlignment: pw.CrossAxisAlignment.start,
                             children: [
                               pw.Row(
-                                mainAxisAlignment: pw.MainAxisAlignment
-                                    .spaceBetween,
+                                mainAxisAlignment:
+                                    pw.MainAxisAlignment.spaceBetween,
                                 children: [
-                                  pw.Text(edu['degree'], style: pw.TextStyle(
-                                      fontWeight: pw.FontWeight.bold)),
-                                  if (edu['gpa'] != null && edu['gpa'] != '') pw
-                                      .Text('GPA: ${edu['gpa']}'),
+                                  pw.Text(edu['degree'],
+                                      style: pw.TextStyle(
+                                          fontWeight: pw.FontWeight.bold)),
+                                  if (edu['gpa'] != null && edu['gpa'] != '')
+                                    pw.Text('GPA: ${edu['gpa']}'),
                                 ],
                               ),
                               pw.Text('${edu['college']}, ${edu['location']}'),
-                              if (edu['coursework']?.isNotEmpty ?? false) pw
-                                  .Text('Coursework: ${edu['coursework']}'),
-                              if (edu['title']?.isNotEmpty ?? false) pw.Text(
-                                  edu['title']),
+                              if (edu['coursework']?.isNotEmpty ?? false)
+                                pw.Text('Coursework: ${edu['coursework']}'),
+                              if (edu['title']?.isNotEmpty ?? false)
+                                pw.Text(edu['title']),
                             ],
                           ),
                         )),
@@ -752,29 +742,26 @@ class _ResumeBuilderHomeState extends State<ResumeBuilderHome> {
                 pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: List<pw.Widget>.from(
-                    (resume['experience'] as List).map((exp) =>
-                        pw.Container(
+                    (resume['experience'] as List).map((exp) => pw.Container(
                           margin: const pw.EdgeInsets.only(bottom: 8),
                           child: pw.Column(
                             crossAxisAlignment: pw.CrossAxisAlignment.start,
                             children: [
                               pw.Row(
-                                mainAxisAlignment: pw.MainAxisAlignment
-                                    .spaceBetween,
+                                mainAxisAlignment:
+                                    pw.MainAxisAlignment.spaceBetween,
                                 children: [
-                                  pw.Text(exp['position'], style: pw.TextStyle(
-                                      fontWeight: pw.FontWeight.bold)),
+                                  pw.Text(exp['position'],
+                                      style: pw.TextStyle(
+                                          fontWeight: pw.FontWeight.bold)),
                                   pw.Text(
-                                      '${exp['startDate']} - ${exp['endDate'] ??
-                                          'Present'}'),
+                                      '${exp['startDate']} - ${exp['endDate'] ?? 'Present'}'),
                                 ],
                               ),
-                              pw.Text('${exp['company']}${exp['location']
-                                  ?.isNotEmpty == true
-                                  ? ', ${exp['location']}'
-                                  : ''}'),
-                              if (exp['description']?.isNotEmpty ?? false) pw
-                                  .Text(exp['description']),
+                              pw.Text(
+                                  '${exp['company']}${exp['location']?.isNotEmpty == true ? ', ${exp['location']}' : ''}'),
+                              if (exp['description']?.isNotEmpty ?? false)
+                                pw.Text(exp['description']),
                             ],
                           ),
                         )),
@@ -790,12 +777,11 @@ class _ResumeBuilderHomeState extends State<ResumeBuilderHome> {
                   spacing: 8,
                   runSpacing: 4,
                   children: List<pw.Widget>.from(
-                    (resume['skills'] as List).map((skill) =>
-                        pw.Container(
+                    (resume['skills'] as List).map((skill) => pw.Container(
                           padding: const pw.EdgeInsets.all(4),
                           decoration: pw.BoxDecoration(
-                            border: pw.Border.all(color: PdfColor.fromHex(
-                                '000435')),
+                            border: pw.Border.all(
+                                color: PdfColor.fromHex('000435')),
                             borderRadius: pw.BorderRadius.circular(4),
                           ),
                           child: pw.Text(skill),
@@ -832,21 +818,21 @@ class _ResumeBuilderHomeState extends State<ResumeBuilderHome> {
       );
 
       final output = await getTemporaryDirectory();
-      final filename = 'resume_${resume['name']
-          .toString()
-          .toLowerCase()
-          .replaceAll(' ', '_')}.pdf';
+      final filename =
+          'resume_${resume['name'].toString().toLowerCase().replaceAll(' ', '_')}.pdf';
       final file = File('${output.path}/$filename');
       await file.writeAsBytes(await pdf.save());
 
       await OpenFile.open(file.path);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Resume PDF generated successfully!'),
+        const SnackBar(
+            content: Text('Resume PDF generated successfully!'),
             backgroundColor: Colors.green),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error generating PDF: $e'),
+        SnackBar(
+            content: Text('Error generating PDF: $e'),
             backgroundColor: Colors.red),
       );
     } finally {

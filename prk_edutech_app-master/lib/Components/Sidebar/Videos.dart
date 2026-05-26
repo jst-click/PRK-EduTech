@@ -1,716 +1,244 @@
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import 'dart:convert';
+
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:testing1/constants.dart';
-
-void main() {
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    SystemChrome.setSystemUIOverlayStyle(
-      const SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-      ),
-    );
-
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Video Learning Platform',
-      theme: ThemeData(
-        primaryColor: const Color(0xFF000435),
-        colorScheme: ColorScheme.fromSwatch().copyWith(
-          primary: const Color(0xFF000435),
-          secondary: const Color(0xFFfb7e02),
-        ),
-        fontFamily: 'Roboto',
-        scaffoldBackgroundColor: Colors.white,
-      ),
-      home: const AllVideosPage(),
-    );
-  }
-}
+import 'package:url_launcher/url_launcher.dart';
 
 class AllVideosPage extends StatefulWidget {
-  const AllVideosPage({Key? key}) : super(key: key);
+  const AllVideosPage({super.key});
 
   @override
   State<AllVideosPage> createState() => _AllVideosPageState();
 }
 
 class _AllVideosPageState extends State<AllVideosPage> {
-  List<VideoModel> videos = [];
-  List<VideoModel> filteredVideos = [];
-  bool isLoading = true;
-  bool filterLive = false;
-  bool filterYoutubeLive = false;
-  bool filterFree = false;
+  static const Color _primaryColor = Color(0xFF4B2EE8);
+  static const Color _youtubeColor = Color(0xFFFF7A00);
+
+  List<_AllVideoItem> _items = <_AllVideoItem>[];
+  final Set<String> _savedVideoKeys = <String>{};
+  _VideoFilter _selectedFilter = _VideoFilter.all;
+  bool _isLoading = true;
+  String _errorMessage = '';
 
   @override
   void initState() {
     super.initState();
-    fetchVideos();
+    _fetchAllVideos();
   }
 
-  Future<void> fetchVideos() async {
+  Future<void> _fetchAllVideos() async {
     setState(() {
-      isLoading = true;
+      _isLoading = true;
+      _errorMessage = '';
     });
 
-    try {
-      final response = await http.get(Uri.parse(buildBaseUrl('videos/')));
+    final List<_AllVideoItem> allItems = <_AllVideoItem>[];
+    final List<String> errors = <String>[];
 
-      if (response.statusCode == 200) {
-        final decoded = json.decode(response.body);
-        final List<dynamic> data = decoded is List
-            ? decoded
-            : (decoded is Map<String, dynamic> && decoded['data'] is List)
-                ? decoded['data'] as List<dynamic>
-                : (decoded is Map<String, dynamic> && decoded['videos'] is List)
-                    ? decoded['videos'] as List<dynamic>
-                    : <dynamic>[];
-        setState(() {
-          videos = data
-              .whereType<Map<String, dynamic>>()
-              .map(VideoModel.fromJson)
-              .where((video) => video.id.isNotEmpty || video.title.isNotEmpty)
-              .toList();
-          filteredVideos = List.from(videos);
-          isLoading = false;
-        });
-      } else {
-        setState(() {
-          isLoading = false;
-        });
-        _showErrorSnackbar("Failed to load videos. Server error.");
+    try {
+      allItems.addAll(await _fetchOnlineClasses());
+    } catch (_) {
+      errors.add('online classes');
+    }
+
+    try {
+      allItems.addAll(await _fetchYoutubeLinks());
+    } catch (_) {
+      errors.add('youtube videos');
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      _items = allItems;
+      _isLoading = false;
+      if (_items.isEmpty && errors.isNotEmpty) {
+        _errorMessage =
+            'Failed to load ${errors.join(' and ')}. Please try again.';
       }
-    } catch (e) {
-      setState(() {
-        isLoading = false;
-      });
-      _showErrorSnackbar("Failed to load videos. ${e.toString()}");
+    });
+  }
+
+  Future<List<_AllVideoItem>> _fetchOnlineClasses() async {
+    final http.Response response =
+        await http.get(Uri.parse(buildApiUrl('online-classes')));
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to fetch online classes');
+    }
+
+    final dynamic decoded = json.decode(response.body);
+    final List<Map<String, dynamic>> parsed = decoded is List
+        ? decoded.whereType<Map<String, dynamic>>().toList()
+        : <Map<String, dynamic>>[];
+
+    return parsed.map(_AllVideoItem.fromOnlineClass).toList();
+  }
+
+  Future<List<_AllVideoItem>> _fetchYoutubeLinks() async {
+    final http.Response response =
+        await http.get(Uri.parse(buildApiUrl('youtube-links')));
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to fetch youtube links');
+    }
+
+    final dynamic decoded = json.decode(response.body);
+    final List<Map<String, dynamic>> parsed = decoded is List
+        ? decoded.whereType<Map<String, dynamic>>().toList()
+        : <Map<String, dynamic>>[];
+
+    return parsed.map(_AllVideoItem.fromYoutubeLink).toList();
+  }
+
+  List<_AllVideoItem> get _visibleItems {
+    switch (_selectedFilter) {
+      case _VideoFilter.all:
+        return _items;
+      case _VideoFilter.onlineClass:
+        return _items
+            .where((item) => item.type == _VideoType.onlineClass)
+            .toList();
+      case _VideoFilter.youtube:
+        return _items.where((item) => item.type == _VideoType.youtube).toList();
+      case _VideoFilter.saved:
+        return _items
+            .where((item) => _savedVideoKeys.contains(item.uniqueKey))
+            .toList();
     }
   }
 
-  void _showErrorSnackbar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-      ),
-    );
-  }
+  String? _extractYoutubeVideoId(String link) {
+    final String trimmed = link.trim();
+    if (trimmed.isEmpty) return null;
 
-  void applyFilters() {
-    setState(() {
-      filteredVideos = videos.where((video) {
-        bool matchLive = !filterLive || video.isLive == filterLive;
-        bool matchYoutubeLive = !filterYoutubeLive || video.isYoutubeLive == filterYoutubeLive;
-        bool matchFree = !filterFree || video.isFree == filterFree;
+    final Uri? uri = Uri.tryParse(trimmed);
+    if (uri == null) return null;
 
-        return matchLive && matchYoutubeLive && matchFree;
-      }).toList();
-    });
-  }
+    final String host = uri.host.toLowerCase();
+    if (host.contains('youtu.be')) {
+      return uri.pathSegments.isNotEmpty ? uri.pathSegments.first : null;
+    }
 
+    if (host.contains('youtube.com')) {
+      final String? queryId = uri.queryParameters['v'];
+      if (queryId != null && queryId.isNotEmpty) return queryId;
 
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        elevation: 5,
-        title: const Text(
-          'All Videos',
-          style: TextStyle(color: Color(0xFF000435), fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: Colors.white,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white),
-            onPressed: fetchVideos,
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // buildFilterSection(),
-          Expanded(
-            child: isLoading
-                ? const Center(
-              child: CircularProgressIndicator(
-                color: Color(0xFFfb7e02),
-              ),
-            )
-                : filteredVideos.isEmpty
-                ? const Center(
-              child: Text(
-                'Coming soon',
-                style: TextStyle(fontSize: 16, color: Colors.grey),
-              ),
-            )
-                : buildVideoList(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Widget buildFilterSection() {
-  //   return Container(
-  //     color: const Color(0xFF000435).withOpacity(0.05),
-  //     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-  //     child: Column(
-  //       crossAxisAlignment: CrossAxisAlignment.start,
-  //       children: [
-  //         const Text(
-  //           'Filter Videos',
-  //           style: TextStyle(
-  //             fontSize: 16,
-  //             fontWeight: FontWeight.bold,
-  //             color: Color(0xFF000435),
-  //           ),
-  //         ),
-  //         const SizedBox(height: 12),
-  //         Container(
-  //           child: Row(
-  //             mainAxisAlignment: MainAxisAlignment.spaceAround,
-  //             children: [
-  //               FilterChip(
-  //                 label: Text(
-  //                   'Live',
-  //                   style: TextStyle(
-  //                     color: filterLive ? Colors.white : const Color(0xFFfb7e02), // White when selected, Orange otherwise
-  //                     fontWeight: FontWeight.bold, // Optional for better visibility
-  //                   ),
-  //                 ),
-  //                 selected: filterLive,
-  //                 backgroundColor: Colors.white,
-  //                 selectedColor: const Color(0xFFfb7e02).withOpacity(0.8), // Adjust opacity for a better look
-  //                 checkmarkColor: Colors.white, // White checkmark when selected
-  //                 onSelected: (selected) {
-  //                   setState(() {
-  //                     filterLive = selected;
-  //                     applyFilters();
-  //                   });
-  //                 },
-  //               ),
-  //               FilterChip(
-  //                 label: Text(
-  //                   'YouTube Live',
-  //                   style: TextStyle(
-  //                     color: filterYoutubeLive ? Colors.white : const Color(0xFFfb7e02),
-  //                     fontWeight: FontWeight.bold,
-  //                   ),
-  //                 ),
-  //                 selected: filterYoutubeLive,
-  //                 backgroundColor: Colors.white,
-  //                 selectedColor: const Color(0xFFfb7e02).withOpacity(0.8),
-  //                 checkmarkColor: Colors.white,
-  //                 onSelected: (selected) {
-  //                   setState(() {
-  //                     filterYoutubeLive = selected;
-  //                     applyFilters();
-  //                   });
-  //                 },
-  //               ),
-  //
-  //               FilterChip(
-  //                 label: Text(
-  //                   'Free',
-  //                   style: TextStyle(
-  //                     color: filterFree ? Colors.white : const Color(0xFFfb7e02),
-  //                     fontWeight: FontWeight.bold,
-  //                   ),
-  //                 ),
-  //                 selected: filterFree,
-  //                 backgroundColor: Colors.white,
-  //                 selectedColor: const Color(0xFFfb7e02).withOpacity(0.8),
-  //                 checkmarkColor: Colors.white,
-  //                 onSelected: (selected) {
-  //                   setState(() {
-  //                     filterFree = selected;
-  //                     applyFilters();
-  //                   });
-  //                 },
-  //               ),
-  //             ],
-  //           ),
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  // }
-
-  Widget buildVideoList() {
-    return ListView.builder(
-      padding: const EdgeInsets.all(8),
-      itemCount: filteredVideos.length,
-      itemBuilder: (context, index) {
-        final video = filteredVideos[index];
-        return VideoCard(video: video);
-      },
-    );
-  }
-}
-
-class VideoCard extends StatelessWidget {
-  final VideoModel video;
-
-  const VideoCard({Key? key, required this.video}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 2,
-      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => VideoDetailScreen(video: video),
-            ),
-          );
-        },
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ClipRRect(
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(12),
-                topRight: Radius.circular(12),
-              ),
-              child: AspectRatio(
-                aspectRatio: 16 / 9,
-                child: buildThumbnail(video.thumbnailUrl),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          video.title,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF000435),
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if (video.isLive)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.red,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: const Text(
-                            'LIVE',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Chapter: ${video.chapterName}',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'By ${video.author}',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: video.isFree
-                              ? const Color(0xFF000435).withOpacity(0.1)
-                              : const Color(0xFFfb7e02).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          video.isFree ? 'Free' : 'Premium',
-                          style: TextStyle(
-                            color: video.isFree
-                                ? const Color(0xFF000435)
-                                : const Color(0xFFfb7e02),
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      if (video.isYoutubeLive)
-                        Container(
-                          margin: const EdgeInsets.only(left: 8),
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.red.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.play_circle_outline,
-                                size: 14,
-                                color: Colors.red[700],
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                'YouTube Live',
-                                style: TextStyle(
-                                  color: Colors.red[700],
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget buildThumbnail(String thumbnailUrl) {
-    if (thumbnailUrl.startsWith('data:image')) {
-      // Handle base64 image
-      try {
-        // Extract the base64 string (remove the prefix)
-        final base64String = thumbnailUrl.split(',')[1];
-        return Image.memory(
-          base64Decode(base64String),
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) {
-            return thumbnailFallback();
-          },
-        );
-      } catch (e) {
-        return thumbnailFallback();
+      if (uri.pathSegments.length >= 2 &&
+          (uri.pathSegments.first == 'embed' ||
+              uri.pathSegments.first == 'shorts' ||
+              uri.pathSegments.first == 'live')) {
+        return uri.pathSegments[1];
       }
-    } else {
-      // Handle normal URL
-      return Image.network(
-        thumbnailUrl,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) {
-          return thumbnailFallback();
-        },
+    }
+
+    final RegExp regExp = RegExp(
+      r'(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})',
+    );
+    final Match? match = regExp.firstMatch(trimmed);
+    return match?.group(1);
+  }
+
+  Future<void> _openLink(String link) async {
+    if (link.trim().isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Video link not available')),
+      );
+      return;
+    }
+
+    final Uri uri = Uri.parse(link.trim());
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to open link')),
       );
     }
   }
 
-  Widget thumbnailFallback() {
-    return Container(
-      color: const Color(0xFF000435).withOpacity(0.1),
-      child: Center(
-        child: Icon(
-          Icons.video_library,
-          size: 50,
-          color: const Color(0xFF000435).withOpacity(0.3),
-        ),
-      ),
-    );
-  }
-}
-
-class VideoDetailScreen extends StatefulWidget {
-  final VideoModel video;
-
-  const VideoDetailScreen({Key? key, required this.video}) : super(key: key);
-
-  @override
-  State<VideoDetailScreen> createState() => _VideoDetailScreenState();
-}
-
-class _VideoDetailScreenState extends State<VideoDetailScreen> {
-  late YoutubePlayerController _controller;
-  bool _isPlayerReady = false;
-
-  @override
-  void initState() {
-    super.initState();
-    final videoId = _extractVideoId(widget.video.videoUrl);
-
-    _controller = YoutubePlayerController(
-      initialVideoId: videoId ?? '',
-      flags: const YoutubePlayerFlags(
-        autoPlay: true,
-        mute: false,
-        enableCaption: true,
-      ),
-    )..addListener(_listener);
+  void _toggleSave(_AllVideoItem item) {
+    setState(() {
+      if (_savedVideoKeys.contains(item.uniqueKey)) {
+        _savedVideoKeys.remove(item.uniqueKey);
+      } else {
+        _savedVideoKeys.add(item.uniqueKey);
+      }
+    });
   }
 
-  void _listener() {
-    if (_isPlayerReady && mounted && !_controller.value.isFullScreen) {
-      setState(() {});
+  Widget _buildThumbnail(_AllVideoItem item) {
+    if (item.type == _VideoType.youtube) {
+      final String? videoId = _extractYoutubeVideoId(item.link);
+      if (videoId != null) {
+        return Image.network(
+          'https://img.youtube.com/vi/$videoId/hqdefault.jpg',
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _thumbnailFallback(),
+        );
+      }
     }
+
+    if (item.thumbnailUrl.isNotEmpty) {
+      return Image.network(
+        item.thumbnailUrl,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _thumbnailFallback(),
+      );
+    }
+
+    return _thumbnailFallback();
   }
 
-  String? _extractVideoId(String url) {
-    RegExp regExp = RegExp(
-      r'(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})',
-    );
-
-    Match? match = regExp.firstMatch(url);
-    return match?.group(1);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.white,
-        title: Text(
-          widget.video.title,
-          style: const TextStyle(color: Color(0xFF000435)),
-        ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF000435)),
-          onPressed: () => Navigator.pop(context),
+  Widget _thumbnailFallback() {
+    return Container(
+      color: const Color(0xFF000435).withOpacity(0.08),
+      child: const Center(
+        child: Icon(
+          Icons.video_library_outlined,
+          size: 38,
+          color: Color(0xFF000435),
         ),
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    );
+  }
+
+  Widget _buildFilterChip({
+    required IconData icon,
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+    Color accentColor = _primaryColor,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        margin: const EdgeInsets.only(right: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: selected ? accentColor.withOpacity(0.12) : Colors.white,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(
+            color: selected ? accentColor.withOpacity(0.3) : Colors.grey.shade300,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            YoutubePlayerBuilder(
-              player: YoutubePlayer(
-                controller: _controller,
-                showVideoProgressIndicator: true,
-                progressIndicatorColor: const Color(0xFFfb7e02),
-                progressColors: const ProgressBarColors(
-                  playedColor: Color(0xFFfb7e02),
-                  handleColor: Color(0xFF000435),
-                ),
-                onReady: () {
-                  _isPlayerReady = true;
-                },
-              ),
-              builder: (context, player) {
-                return Column(
-                  children: [
-                    player,
-                  ],
-                );
-              },
+            Icon(
+              icon,
+              size: 18,
+              color: selected ? accentColor : Colors.grey.shade700,
             ),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.video.title,
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF000435),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: widget.video.isFree
-                              ? const Color(0xFF000435).withOpacity(0.1)
-                              : const Color(0xFFfb7e02).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          widget.video.isFree ? 'Free' : 'Premium',
-                          style: TextStyle(
-                            color: widget.video.isFree
-                                ? const Color(0xFF000435)
-                                : const Color(0xFFfb7e02),
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      if (widget.video.isLive)
-                        Container(
-                          margin: const EdgeInsets.only(left: 8),
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.red.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: const Text(
-                            'LIVE',
-                            style: TextStyle(
-                              color: Colors.red,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      if (widget.video.isYoutubeLive)
-                        Container(
-                          margin: const EdgeInsets.only(left: 8),
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.red.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: const Text(
-                            'YouTube Live',
-                            style: TextStyle(
-                              color: Colors.red,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF000435).withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.book,
-                              size: 18,
-                              color: Color(0xFF000435),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Chapter: ${widget.video.chapterName}',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                color: Color(0xFF000435),
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.person,
-                              size: 18,
-                              color: Color(0xFF000435),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Instructor: ${widget.video.author}',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                color: Color(0xFF000435),
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.calendar_today,
-                              size: 18,
-                              color: Color(0xFF000435),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Published: ${_formatDate(widget.video.createdTime)}',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                color: Color(0xFF000435),
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    'Description',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF000435),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: const Color(0xFF000435).withOpacity(0.1),
-                      ),
-                    ),
-                    child: Text(
-                      widget.video.description,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        height: 1.5,
-                        color: Colors.black87,
-                      ),
-                    ),
-                  ),
-                ],
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? accentColor : Colors.grey.shade800,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ],
@@ -719,56 +247,462 @@ class _VideoDetailScreenState extends State<VideoDetailScreen> {
     );
   }
 
-  String _formatDate(String dateString) {
-    try {
-      final date = DateTime.parse(dateString);
-      return '${date.day}/${date.month}/${date.year}';
-    } catch (e) {
-      return dateString;
-    }
+  Widget _buildVideoCard(_AllVideoItem item) {
+    final bool isSaved = _savedVideoKeys.contains(item.uniqueKey);
+    final bool isYoutube = item.type == _VideoType.youtube;
+    final Color actionColor = isYoutube ? _youtubeColor : _primaryColor;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 145,
+              height: 138,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    _buildThumbnail(item),
+                    Positioned(
+                      left: 8,
+                      bottom: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.68),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          item.durationLabel,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 138),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isYoutube
+                                ? Colors.red.withOpacity(0.1)
+                                : _primaryColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            isYoutube ? 'YouTube' : 'Online Class',
+                            style: TextStyle(
+                              color: isYoutube ? Colors.red.shade700 : _primaryColor,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        const Spacer(),
+                        InkWell(
+                          onTap: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('More actions soon')),
+                            );
+                          },
+                          borderRadius: BorderRadius.circular(14),
+                          child: Padding(
+                            padding: const EdgeInsets.all(4),
+                            child: Icon(
+                              Icons.more_vert,
+                              color: Colors.grey.shade700,
+                              size: 20,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      item.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF1A1E3B),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 30 / 2,
+                      ),
+                    ),
+                    if (item.dateOrMetaText.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        item.dateOrMetaText,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.grey.shade700,
+                          fontWeight: FontWeight.w500,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 4),
+                    Text(
+                      item.description,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.grey.shade800,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: SizedBox(
+                            height: 40,
+                            child: ElevatedButton.icon(
+                              onPressed: () => _openLink(item.link),
+                              icon: const Icon(Icons.play_circle_fill, size: 18),
+                              label: Text(
+                                isYoutube ? 'Open Video' : 'Watch Now',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                softWrap: false,
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                elevation: 0,
+                                backgroundColor: actionColor,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                textStyle: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        InkWell(
+                          onTap: () => _toggleSave(item),
+                          borderRadius: BorderRadius.circular(18),
+                          child: Container(
+                            width: 38,
+                            height: 38,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.white,
+                              border: Border.all(color: Colors.grey.shade300),
+                            ),
+                            child: Icon(
+                              isSaved ? Icons.bookmark : Icons.bookmark_border,
+                              color: isSaved ? _primaryColor : Colors.grey.shade700,
+                              size: 20,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildListFooter() {
+    return Container(
+      margin: const EdgeInsets.only(top: 6, bottom: 14),
+      padding: const EdgeInsets.symmetric(vertical: 26, horizontal: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7F6FF),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE7E2FF)),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.ondemand_video_rounded,
+            color: _primaryColor.withOpacity(0.35),
+            size: 34,
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            'No more videos',
+            style: TextStyle(
+              fontSize: 30 / 2,
+              color: Color(0xFF1A1E3B),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'You\'ve reached the end of the list.',
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final List<_AllVideoItem> visibleItems = _visibleItems;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF9FAFC),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFFF9FAFC),
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          onPressed: () => Navigator.maybePop(context),
+          icon: const Icon(Icons.arrow_back, color: Color(0xFF1A1E3B)),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh, color: _primaryColor),
+            onPressed: _fetchAllVideos,
+          ),
+        ],
+      ),
+      body: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'All Videos',
+                style: TextStyle(
+                  fontSize: 34 / 2,
+                  color: Color(0xFF1A1E3B),
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Explore and learn with our curated videos',
+                style: TextStyle(
+                  color: Colors.grey.shade700,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 14),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _buildFilterChip(
+                      icon: Icons.play_circle_outline,
+                      label: 'All Videos',
+                      selected: _selectedFilter == _VideoFilter.all,
+                      onTap: () {
+                        setState(() => _selectedFilter = _VideoFilter.all);
+                      },
+                    ),
+                    _buildFilterChip(
+                      icon: Icons.school_outlined,
+                      label: 'Online Class',
+                      selected: _selectedFilter == _VideoFilter.onlineClass,
+                      onTap: () {
+                        setState(() => _selectedFilter = _VideoFilter.onlineClass);
+                      },
+                    ),
+                    _buildFilterChip(
+                      icon: Icons.smart_display,
+                      label: 'YouTube',
+                      selected: _selectedFilter == _VideoFilter.youtube,
+                      onTap: () {
+                        setState(() => _selectedFilter = _VideoFilter.youtube);
+                      },
+                      accentColor: _youtubeColor,
+                    ),
+                    _buildFilterChip(
+                      icon: Icons.bookmark_border_rounded,
+                      label: 'Saved',
+                      selected: _selectedFilter == _VideoFilter.saved,
+                      onTap: () {
+                        setState(() => _selectedFilter = _VideoFilter.saved);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              Expanded(
+                child: _isLoading
+                    ? const Center(
+                        child: CircularProgressIndicator(color: _primaryColor),
+                      )
+                    : _errorMessage.isNotEmpty
+                        ? Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(20),
+                              child: Text(
+                                _errorMessage,
+                                style: TextStyle(color: Colors.grey.shade700),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          )
+                        : visibleItems.isEmpty
+                            ? _buildListFooter()
+                            : ListView.builder(
+                                padding: const EdgeInsets.only(bottom: 6),
+                                itemCount: visibleItems.length + 1,
+                                itemBuilder: (BuildContext context, int index) {
+                                  if (index == visibleItems.length) {
+                                    return _buildListFooter();
+                                  }
+                                  return _buildVideoCard(visibleItems[index]);
+                                },
+                              ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
-class VideoModel {
-  final String id;
-  final String title;
-  final String videoUrl;
-  final String description;
-  final String author;
-  final String chapterName;
-  final String thumbnailUrl;
-  final bool isFree;
-  final bool isLive;
-  final bool isYoutubeLive;
-  final String createdTime;
+enum _VideoType { onlineClass, youtube }
 
-  VideoModel({
+enum _VideoFilter { all, onlineClass, youtube, saved }
+
+class _AllVideoItem {
+  final String id;
+  final _VideoType type;
+  final String title;
+  final String description;
+  final String thumbnailUrl;
+  final String dateOrMetaText;
+  final String durationLabel;
+  final String link;
+
+  _AllVideoItem({
     required this.id,
+    required this.type,
     required this.title,
-    required this.videoUrl,
     required this.description,
-    required this.author,
-    required this.chapterName,
     required this.thumbnailUrl,
-    required this.isFree,
-    required this.isLive,
-    required this.isYoutubeLive,
-    required this.createdTime,
+    required this.dateOrMetaText,
+    required this.durationLabel,
+    required this.link,
   });
 
-  factory VideoModel.fromJson(Map<String, dynamic> json) {
-    return VideoModel(
-      id: json['_id'] ?? '',
-      title: (json['title'] ?? 'Untitled Video').toString(),
-      videoUrl: json['videoUrl'] ?? '',
-      description: (json['description'] ?? 'No description available').toString(),
-      author: (json['author'] ?? 'Unknown Author').toString(),
-      chapterName: (json['chapterName'] ?? 'General').toString(),
-      thumbnailUrl: json['thumbnailUrl'] ?? '',
-      isFree: json['isFree'] ?? true,
-      isLive: json['isLive'] ?? false,
-      isYoutubeLive: json['isYoutubeLive'] ?? false,
-      createdTime: json['createdTime'] ?? '',
+  String get uniqueKey {
+    if (id.isNotEmpty) return '$type-$id';
+    if (link.isNotEmpty) return '$type-$link';
+    return '$type-$title-$description';
+  }
+
+  factory _AllVideoItem.fromOnlineClass(Map<String, dynamic> json) {
+    final String date = (json['date'] ?? '').toString().trim();
+    final String time = (json['time'] ?? '').toString().trim();
+    final String rawImage = (json['img'] ?? '').toString().trim();
+    final String dateText = _formatDateDisplay(date);
+
+    return _AllVideoItem(
+      id: (json['_id'] ?? '').toString(),
+      type: _VideoType.onlineClass,
+      title: (json['title'] ?? 'Untitled Online Class').toString(),
+      description: (json['description'] ?? '-').toString(),
+      thumbnailUrl: rawImage.isEmpty ? '' : _resolveOnlineClassImage(rawImage),
+      dateOrMetaText: dateText.isEmpty
+          ? ''
+          : '$dateText${time.isEmpty ? '' : '  |  $time'}',
+      durationLabel: _normalizeDuration(time),
+      link: (json['link'] ?? json['videoUrl'] ?? '').toString(),
     );
+  }
+
+  factory _AllVideoItem.fromYoutubeLink(Map<String, dynamic> json) {
+    return _AllVideoItem(
+      id: (json['_id'] ?? '').toString(),
+      type: _VideoType.youtube,
+      title: (json['title'] ?? 'Untitled YouTube Video').toString(),
+      description: (json['description'] ?? '-').toString(),
+      thumbnailUrl: '',
+      dateOrMetaText: '',
+      durationLabel: '04:35',
+      link: (json['link'] ?? '').toString(),
+    );
+  }
+
+  static String _resolveOnlineClassImage(String raw) {
+    if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+    return buildBaseUrl(raw);
+  }
+
+  static String _formatDateDisplay(String dateValue) {
+    if (dateValue.isEmpty) return '';
+    final DateTime? parsed = DateTime.tryParse(dateValue);
+    if (parsed == null) return dateValue;
+    const List<String> months = <String>[
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${parsed.day} ${months[parsed.month - 1]} ${parsed.year}';
+  }
+
+  static String _normalizeDuration(String rawValue) {
+    final String value = rawValue.trim();
+    if (value.isEmpty) return '03:00';
+    final RegExp durationExp = RegExp(r'^\d{1,2}:\d{2}$');
+    if (durationExp.hasMatch(value)) return value;
+    return '03:00';
   }
 }

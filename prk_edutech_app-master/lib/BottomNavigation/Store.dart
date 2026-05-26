@@ -26,7 +26,7 @@ class _StoreState extends State<Store> {
     List<Course> filteredCourses = courses.where((course) => course.name.toLowerCase().contains(searchQuery.toLowerCase())).toList();
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFFFF3E0),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(

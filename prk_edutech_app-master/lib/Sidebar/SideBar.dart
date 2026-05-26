@@ -2,13 +2,14 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:url_launcher/url_launcher.dart';
 import 'package:testing1/BottomNavigation/ChatScreen.dart';
-import 'package:testing1/BottomNavigation/Profile.dart';
 import 'package:testing1/Components/NewSidebar/FAQ.dart';
 import 'package:testing1/Components/NewSidebar/Howtouse.dart';
+import 'package:testing1/Components/NewSidebar/Privacy.dart';
 import 'package:testing1/Components/NewSidebar/Resume.dart';
 import 'package:testing1/Components/NewSidebar/TestimonialPage.dart';
+import 'package:testing1/Components/NewSidebar/Terms.dart';
+import 'package:testing1/BottomNavigation/JobsListings.dart';
 import 'package:testing1/Components/Sidebar/CurrentAffair.dart';
 import 'package:testing1/constants.dart';
 
@@ -92,8 +93,8 @@ class _SideBarState extends State<SideBar> {
         final imageData = json.decode(response.body);
         String relativePath = imageData['photoUrl'] ?? '';
         if (relativePath.isNotEmpty) {
-          relativePath =
-              relativePath.replaceFirst('/root/PRK_Edutech/prk_edutech_backend', '');
+          relativePath = relativePath.replaceFirst(
+              '/root/PRK_Edutech/prk_edutech_backend', '');
         }
 
         setState(() {
@@ -124,21 +125,6 @@ class _SideBarState extends State<SideBar> {
   void _openPage(Widget page) {
     Navigator.of(context).pop();
     Navigator.push(context, MaterialPageRoute(builder: (context) => page));
-  }
-
-  Future<void> _openExternalUrl(Uri uri, String fallbackMessage) async {
-    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (!launched && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(fallbackMessage)),
-      );
-    }
-  }
-
-  void _showComingSoon(String label) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$label is coming soon')),
-    );
   }
 
   @override
@@ -207,6 +193,14 @@ class _SideBarState extends State<SideBar> {
                     onTap: () => _openPage(CurrentAffairsPage()),
                   ),
                   _buildDrawerItem(
+                    icon: Icons.work_outline_rounded,
+                    title: 'Jobs',
+                    subtitle: 'Government and private openings',
+                    iconBackground: const Color(0xFFEFF7F0),
+                    iconColor: const Color(0xFF2E7D32),
+                    onTap: () => _openPage(const JobsPage()),
+                  ),
+                  _buildDrawerItem(
                     icon: Icons.star_rounded,
                     title: 'Testimonials',
                     subtitle: 'See what our learners say',
@@ -225,30 +219,18 @@ class _SideBarState extends State<SideBar> {
                   const SizedBox(height: 14),
                   _buildSectionLabel('More'),
                   _buildDrawerItem(
-                    icon: Icons.settings_rounded,
-                    title: 'Settings',
+                    icon: Icons.gavel_rounded,
+                    title: 'Terms and Conditions',
                     iconBackground: const Color(0xFFF0F2FA),
                     iconColor: const Color(0xFF5D657F),
-                    onTap: () => _openPage(const ProfileScreen()),
+                    onTap: () => _openPage(const Terms()),
                   ),
                   _buildDrawerItem(
-                    icon: Icons.star_border_rounded,
-                    title: 'Rate Us',
-                    iconBackground: const Color(0xFFFFF5E6),
-                    iconColor: const Color(0xFFFFA000),
-                    onTap: () async {
-                      await _openExternalUrl(
-                        Uri.parse('https://play.google.com/store'),
-                        'Unable to open Play Store',
-                      );
-                    },
-                  ),
-                  _buildDrawerItem(
-                    icon: Icons.share_rounded,
-                    title: 'Share App',
+                    icon: Icons.privacy_tip_rounded,
+                    title: 'Privacy Policy',
                     iconBackground: const Color(0xFFEAF4FF),
                     iconColor: const Color(0xFF1E88E5),
-                    onTap: () => _showComingSoon('Share App'),
+                    onTap: () => _openPage(const Privacy()),
                   ),
                 ],
               ),
@@ -267,7 +249,8 @@ class _SideBarState extends State<SideBar> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   elevation: 0,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                 ),
                 icon: const Icon(Icons.logout_rounded),
                 label: const Text(
@@ -305,11 +288,14 @@ class _SideBarState extends State<SideBar> {
                 CircleAvatar(
                   radius: 30,
                   backgroundColor: const Color(0xFF8BB0C7),
-                  backgroundImage:
-                      _profileImageUrl != null ? NetworkImage(_profileImageUrl!) : null,
+                  backgroundImage: _profileImageUrl != null
+                      ? NetworkImage(_profileImageUrl!)
+                      : null,
                   child: _profileImageUrl == null
                       ? Text(
-                          _userName.isNotEmpty ? _userName[0].toUpperCase() : 'U',
+                          _userName.isNotEmpty
+                              ? _userName[0].toUpperCase()
+                              : 'U',
                           style: const TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
@@ -345,7 +331,8 @@ class _SideBarState extends State<SideBar> {
                       ),
                       const SizedBox(height: 6),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 3),
                         decoration: BoxDecoration(
                           color: const Color(0xFFFFF2D9),
                           borderRadius: BorderRadius.circular(999),

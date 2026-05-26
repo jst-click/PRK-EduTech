@@ -47,7 +47,7 @@ function CarouselPage() {
     <section className="card">
       <PageHeader
         title="Carousel Images"
-        description="Upload and remove home slider images"
+        description="Upload and remove home slider images (recommended: 1200 x 675 px, 16:9)"
         action={
           <button type="button" className="btn" onClick={() => setShowAddForm((prev) => !prev)}>
             {showAddForm ? 'Close Form' : 'Add Image'}
@@ -56,6 +56,7 @@ function CarouselPage() {
       />
       {showAddForm && (
         <form className="inline-tools" onSubmit={uploadImage}>
+          <p className="muted">Recommended size: 1200 x 675 px (16:9) for best app banner fit.</p>
           <input
             type="file"
             accept="image/*"

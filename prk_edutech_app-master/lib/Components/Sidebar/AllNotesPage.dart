@@ -35,16 +35,32 @@ class AllNotesPage extends StatefulWidget {
   _AllNotesPageState createState() => _AllNotesPageState();
 }
 
-class _AllNotesPageState extends State<AllNotesPage> with SingleTickerProviderStateMixin {
+class _AllNotesPageState extends State<AllNotesPage>
+    with SingleTickerProviderStateMixin {
   List<dynamic> resources = [];
   bool isLoading = true;
   String selectedCategory = 'all';
+  final List<Map<String, dynamic>> _categoryOptions = const [
+    {'value': 'all', 'label': 'All', 'icon': Icons.apps_outlined},
+    {'value': 'class', 'label': 'Class Notes', 'icon': Icons.school_outlined},
+    {
+      'value': 'handwritten',
+      'label': 'Handwritten',
+      'icon': Icons.edit_note_outlined
+    },
+    {'value': 'pdf', 'label': 'PDF', 'icon': Icons.picture_as_pdf_outlined},
+    {'value': 'filters', 'label': 'Filters', 'icon': Icons.tune_outlined},
+  ];
+
+  String _safeText(dynamic value, {String fallback = 'N/A'}) {
+    final text = value?.toString().trim() ?? '';
+    return text.isEmpty ? fallback : text;
+  }
 
   @override
   void initState() {
     super.initState();
-    // Set selectedCategory to 'ebook' to only show ebooks
-    selectedCategory = 'notes';
+    selectedCategory = 'all';
     fetchResources();
   }
 
@@ -87,108 +103,449 @@ class _AllNotesPageState extends State<AllNotesPage> with SingleTickerProviderSt
     }
   }
 
-  List<dynamic> getFilteredResources() {
-    if (selectedCategory == 'all') {
-      return resources;
-    } else {
-      return resources.where((resource) => resource['contentType'] == selectedCategory).toList();
-    }
+  bool _isNote(dynamic resource) {
+    return _safeText(resource['contentType']).toLowerCase() == 'notes';
   }
 
-  Widget _buildResourceCard(dynamic resource) {
-    // Check if imageUrl is a base64 encoded string
-    bool isBase64Image = resource['imageUrl'].toString().startsWith('data:image');
+  bool _matchesCategory(dynamic resource) {
+    if (selectedCategory == 'all' || selectedCategory == 'filters') {
+      return true;
+    }
 
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ResourceDetailPage(resourceId: resource['_id']),
+    final searchable = [
+      _safeText(resource['title']),
+      _safeText(resource['description']),
+      _safeText(resource['subject']),
+      _safeText(resource['author']),
+    ].join(' ').toLowerCase();
+
+    return searchable.contains(selectedCategory);
+  }
+
+  List<dynamic> getFilteredResources() {
+    return resources
+        .where((resource) => _isNote(resource) && _matchesCategory(resource))
+        .toList();
+  }
+
+  void _openResource(String resourceId) {
+    if (resourceId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to open this note right now')),
+      );
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ResourceDetailPage(resourceId: resourceId),
+      ),
+    );
+  }
+
+  Widget _buildCategoryFilter() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+      child: Row(
+        children: _categoryOptions.map((option) {
+          final value = option['value'] as String;
+          final isSelected = selectedCategory == value;
+          return Padding(
+            padding: const EdgeInsets.only(right: 10),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: () {
+                setState(() {
+                  selectedCategory = value;
+                });
+              },
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color:
+                      isSelected ? const Color(0xFFFFF0E0) : Colors.transparent,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: isSelected
+                        ? const Color(0xFFf59d1c)
+                        : const Color(0xFFE9E7E2),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      option['icon'] as IconData,
+                      size: 18,
+                      color: isSelected
+                          ? const Color(0xFFf59d1c)
+                          : const Color(0xFF484848),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      option['label'] as String,
+                      style: TextStyle(
+                        color: const Color(0xFF20222A),
+                        fontWeight:
+                            isSelected ? FontWeight.w700 : FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildCoverImage(String imageUrl,
+      {double height = 200, double width = double.infinity}) {
+    final isBase64Image = imageUrl.startsWith('data:image');
+    final borderRadius = BorderRadius.circular(16);
+
+    if (isBase64Image) {
+      try {
+        return ClipRRect(
+          borderRadius: borderRadius,
+          child: Image.memory(
+            base64Decode(imageUrl.split(',')[1]),
+            height: height,
+            width: width,
+            fit: BoxFit.cover,
           ),
         );
-      },
-      child: Card(
-        elevation: 3,
-        margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+      } catch (_) {}
+    }
+
+    return ClipRRect(
+      borderRadius: borderRadius,
+      child: CachedNetworkImage(
+        imageUrl: imageUrl,
+        height: height,
+        width: width,
+        fit: BoxFit.cover,
+        placeholder: (context, url) => Container(
+          height: height,
+          width: width,
+          color: const Color(0xFFEDEDED),
+          alignment: Alignment.center,
+          child: const CircularProgressIndicator(color: Color(0xFFfb7e02)),
+        ),
+        errorWidget: (context, url, error) => Container(
+          height: height,
+          width: width,
+          color: const Color(0xFFEDEDED),
+          alignment: Alignment.center,
+          child: const Icon(Icons.sticky_note_2_rounded,
+              color: Color(0xFF9A9A9A)),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFeaturedCard(dynamic resource) {
+    final resourceId = _safeText(resource['_id'], fallback: '');
+    final imageUrl = _safeText(resource['imageUrl'], fallback: '');
+    final title = _safeText(resource['title'], fallback: 'Untitled note');
+    final description = _safeText(resource['description'],
+        fallback: 'Detailed notes for fast revision and deep understanding.');
+    final author = _safeText(resource['author'], fallback: 'Unknown');
+    final pages = _safeText(
+      resource['pages'] ?? resource['pageCount'] ?? resource['totalPages'],
+      fallback: '--',
+    );
+    final size = _safeText(
+      resource['fileSize'] ?? resource['size'] ?? resource['pdfSize'],
+      fallback: '--',
+    );
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x14000000),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          )
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          GestureDetector(
+            onTap: () => _openResource(resourceId),
+            child: Stack(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: _buildCoverImage(imageUrl, height: 200),
+                ),
+                Positioned(
+                  top: 22,
+                  right: 24,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1D2342).withOpacity(0.78),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFFFD69A)),
+                    ),
+                    child: const Text(
+                      'PDF',
+                      style: TextStyle(
+                        color: Color(0xFFFFE7C0),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 2, 16, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF2E4),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.sticky_note_2_rounded,
+                        color: Color(0xFFef8306),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 26,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF121528),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          const Text(
+                            'Note Title',
+                            style: TextStyle(
+                              color: Color(0xFF7E7E88),
+                              fontSize: 21,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  description,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    height: 1.35,
+                    color: Color(0xFF56596C),
+                    fontSize: 17,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 10),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: const Color(0xFFE7E7E7)),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.person_rounded,
+                                color: Color(0xFFef8306)),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                author,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 10),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: const Color(0xFFE7E7E7)),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.description_outlined,
+                                color: Color(0xFF545977)),
+                            const SizedBox(width: 8),
+                            Text(
+                              pages,
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                            const Text(' pages'),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 10),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: const Color(0xFFE7E7E7)),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.auto_awesome,
+                                color: Color(0xFF635BCE)),
+                            const SizedBox(width: 8),
+                            Text(
+                              size,
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () => _openResource(resourceId),
+                        icon: const Icon(Icons.download_rounded, size: 18),
+                        label: const Text('NOTES'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFef8306),
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          minimumSize: const Size(double.infinity, 48),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompactCard(dynamic resource) {
+    final resourceId = _safeText(resource['_id'], fallback: '');
+    final imageUrl = _safeText(resource['imageUrl'], fallback: '');
+    final title = _safeText(resource['title'], fallback: 'Untitled note');
+    final subject = _safeText(resource['subject'], fallback: 'Quick Revision');
+
+    return GestureDetector(
+      onTap: () => _openResource(resourceId),
+      child: Container(
+        width: 172,
+        margin: const EdgeInsets.only(right: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x12000000),
+              blurRadius: 10,
+              offset: Offset(0, 3),
+            )
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            ClipRRect(
-              borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
-              child: Container(
-                height: 150,
-                width: double.infinity,
-                child: isBase64Image
-                    ? Image.memory(
-                  base64Decode(resource['imageUrl'].split(',')[1]),
-                  fit: BoxFit.cover,
-                )
-                    : CachedNetworkImage(
-                  imageUrl: resource['imageUrl'],
-                  fit: BoxFit.cover,
-                  placeholder: (context, url) => Center(
-                    child: CircularProgressIndicator(
-                      color: Color(0xFFfb7e02),
+            Stack(
+              children: [
+                _buildCoverImage(imageUrl, height: 106, width: 172),
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.62),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      'PDF',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
-                  errorWidget: (context, url, error) => Icon(Icons.error),
-                ),
-              ),
+                )
+              ],
             ),
             Padding(
-              padding: EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(10, 10, 10, 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    resource['title'],
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF000435),
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    resource['description'],
+                    title,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                      color: Color(0xFF1B1D2B),
+                    ),
                   ),
-                  SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.person, size: 16, color: Color(0xFFfb7e02)),
-                          SizedBox(width: 4),
-                          Text(
-                            resource['author'],
-                            style: TextStyle(fontSize: 14),
-                          ),
-                        ],
-                      ),
-                      Container(
-                        padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: Color(0xFFfb7e02).withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          resource['contentType'].toUpperCase(),
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFFfb7e02),
-                          ),
-                        ),
-                      ),
-                    ],
+                  const SizedBox(height: 4),
+                  Text(
+                    subject,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style:
+                        const TextStyle(fontSize: 12, color: Color(0xFF6D7082)),
                   ),
                 ],
               ),
@@ -204,54 +561,151 @@ class _AllNotesPageState extends State<AllNotesPage> with SingleTickerProviderSt
     final filteredResources = getFilteredResources();
 
     return Scaffold(
+      backgroundColor: const Color(0xFFFFF9F4),
       appBar: AppBar(
-        title: Text(
-          'Educational Notes',
-          style: TextStyle(color: Color(0xFF000435)),
-        ),
-        backgroundColor: Colors.white,
-        elevation: 0,
-      ),
-      body: isLoading
-          ? Center(
-        child: CircularProgressIndicator(
-          color: Color(0xFFfb7e02),
-        ),
-      )
-          : filteredResources.isEmpty
-          ? Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.library_books,
-              size: 80,
-              color: Color(0xFF000435).withOpacity(0.3),
-            ),
-            SizedBox(height: 16),
+        titleSpacing: 0,
+        title: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: const [
             Text(
-              'Coming soon',
+              'Educational Notes',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
+                color: Color(0xFF0F1230),
                 fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF000435),
+                fontWeight: FontWeight.w700,
               ),
             ),
-            SizedBox(height: 8),
+            SizedBox(height: 2),
+            Text(
+              'Explore and download notes to learn anytime',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: Color(0xFF686B7A),
+                fontSize: 13,
+                fontWeight: FontWeight.w400,
+              ),
+            ),
           ],
         ),
-      )
-          : RefreshIndicator(
-        onRefresh: fetchResources,
-        color: Color(0xFFfb7e02),
-        child: ListView.builder(
-          padding: EdgeInsets.symmetric(vertical: 16),
-          itemCount: filteredResources.length,
-          itemBuilder: (context, index) {
-            return _buildResourceCard(filteredResources[index]);
-          },
-        ),
+        backgroundColor: const Color(0xFFFFF3E0),
+        elevation: 0.1,
+        toolbarHeight: 74,
+        iconTheme: const IconThemeData(color: Color(0xFF191B2F)),
+        actions: [
+          Container(
+            margin: const EdgeInsets.only(right: 16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFBEAD5),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: IconButton(
+              onPressed: () {},
+              icon: const Icon(Icons.search, color: Color(0xFF191B2F)),
+            ),
+          )
+        ],
       ),
+      body: isLoading
+          ? const Center(
+              child: CircularProgressIndicator(
+                color: Color(0xFFfb7e02),
+              ),
+            )
+          : filteredResources.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.sticky_note_2_outlined,
+                        size: 80,
+                        color: const Color(0xFF000435).withOpacity(0.3),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'No notes found',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF000435),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Add notes from admin panel to show here',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: fetchResources,
+                  color: const Color(0xFFfb7e02),
+                  child: ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: [
+                      _buildCategoryFilter(),
+                      _buildFeaturedCard(filteredResources.first),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
+                        child: Row(
+                          children: const [
+                            Expanded(
+                              child: Text(
+                              'More Notes for You',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF15172C),
+                              ),
+                            ),
+                            ),
+                            SizedBox(width: 10),
+                            Text(
+                              'View All',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w500,
+                                color: Color(0xFFef8306),
+                              ),
+                            )
+                          ],
+                        ),
+                      ),
+                      if (filteredResources.length <= 1)
+                        const Padding(
+                          padding: EdgeInsets.fromLTRB(16, 6, 16, 20),
+                          child: Text(
+                            'Add more notes from admin panel to show suggestions here.',
+                            style: TextStyle(color: Color(0xFF7D8192)),
+                          ),
+                        )
+                      else
+                        SizedBox(
+                          height: 200,
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            padding: const EdgeInsets.fromLTRB(16, 6, 4, 18),
+                            itemCount: filteredResources.length - 1,
+                            itemBuilder: (context, index) {
+                              return _buildCompactCard(
+                                filteredResources[index + 1],
+                              );
+                            },
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
     );
   }
 }
@@ -339,7 +793,8 @@ class _ResourceDetailPageState extends State<ResourceDetailPage> {
       final dir = await getTemporaryDirectory();
 
       // Create a file name from the resource ID and title
-      final String fileName = '${resourceDetail['_id']}_${resourceDetail['title']}.pdf';
+      final String fileName =
+          '${resourceDetail['_id']}_${resourceDetail['title']}.pdf';
       final String filePath = '${dir.path}/$fileName';
 
       // Write the PDF to temporary storage
@@ -383,196 +838,207 @@ class _ResourceDetailPageState extends State<ResourceDetailPage> {
           isLoading ? 'Loading...' : resourceDetail['title'],
           style: TextStyle(color: Color(0xFF000435)),
         ),
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFFFFF3E0),
         iconTheme: IconThemeData(color: Color(0xFF000435)),
       ),
       body: isLoading
           ? Center(
-        child: CircularProgressIndicator(
-          color: Color(0xFFfb7e02),
-        ),
-      )
-          : SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Image section
-            Container(
-              height: 200,
-              width: double.infinity,
-              child: isBase64Image(resourceDetail['imageUrl'])
-                  ? Image.memory(
-                base64Decode(resourceDetail['imageUrl'].split(',')[1]),
-                fit: BoxFit.cover,
-              )
-                  : CachedNetworkImage(
-                imageUrl: resourceDetail['imageUrl'],
-                fit: BoxFit.cover,
-                placeholder: (context, url) => Center(
-                  child: CircularProgressIndicator(
-                    color: Color(0xFFfb7e02),
-                  ),
-                ),
-                errorWidget: (context, url, error) => Icon(Icons.error),
+              child: CircularProgressIndicator(
+                color: Color(0xFFfb7e02),
               ),
-            ),
-
-            // Content section
-            Padding(
-              padding: EdgeInsets.all(16),
+            )
+          : SingleChildScrollView(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    resourceDetail['title'],
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF000435),
-                    ),
-                  ),
-                  SizedBox(height: 8),
-
-                  // Tags row
-                  Row(
-                    children: [
-                      Container(
-                        padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: Color(0xFFfb7e02).withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          resourceDetail['contentType'].toUpperCase(),
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFFfb7e02),
+                  // Image section
+                  Container(
+                    height: 200,
+                    width: double.infinity,
+                    child: isBase64Image(resourceDetail['imageUrl'])
+                        ? Image.memory(
+                            base64Decode(
+                                resourceDetail['imageUrl'].split(',')[1]),
+                            fit: BoxFit.cover,
+                          )
+                        : CachedNetworkImage(
+                            imageUrl: resourceDetail['imageUrl'],
+                            fit: BoxFit.cover,
+                            placeholder: (context, url) => Center(
+                              child: CircularProgressIndicator(
+                                color: Color(0xFFfb7e02),
+                              ),
+                            ),
+                            errorWidget: (context, url, error) =>
+                                Icon(Icons.error),
                           ),
-                        ),
-                      ),
-                      SizedBox(width: 8),
-                      Container(
-                        padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: Color(0xFF000435).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          resourceDetail['difficultyLevel'].toUpperCase(),
+                  ),
+
+                  // Content section
+                  Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          resourceDetail['title'],
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: 24,
                             fontWeight: FontWeight.bold,
                             color: Color(0xFF000435),
                           ),
                         ),
-                      ),
-                      SizedBox(width: 8),
-                      Container(
-                        padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: resourceDetail['pricing'] == 'free'
-                              ? Colors.green.withOpacity(0.2)
-                              : Colors.red.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(12),
+                        SizedBox(height: 8),
+
+                        // Tags row
+                        Row(
+                          children: [
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: Color(0xFFfb7e02).withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                resourceDetail['contentType'].toUpperCase(),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFFfb7e02),
+                                ),
+                              ),
+                            ),
+                            SizedBox(width: 8),
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: Color(0xFF000435).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                resourceDetail['difficultyLevel'].toUpperCase(),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF000435),
+                                ),
+                              ),
+                            ),
+                            SizedBox(width: 8),
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: resourceDetail['pricing'] == 'free'
+                                    ? Colors.green.withOpacity(0.2)
+                                    : Colors.red.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                resourceDetail['pricing'].toUpperCase(),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: resourceDetail['pricing'] == 'free'
+                                      ? Colors.green
+                                      : Colors.red,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                        child: Text(
-                          resourceDetail['pricing'].toUpperCase(),
+
+                        SizedBox(height: 16),
+
+                        // Description
+                        Text(
+                          'Description',
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: 18,
                             fontWeight: FontWeight.bold,
-                            color: resourceDetail['pricing'] == 'free'
-                                ? Colors.green
-                                : Colors.red,
+                            color: Color(0xFF000435),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
+                        SizedBox(height: 8),
+                        Text(
+                          resourceDetail['description'],
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey[800],
+                          ),
+                        ),
 
-                  SizedBox(height: 16),
+                        SizedBox(height: 16),
 
-                  // Description
-                  Text(
-                    'Description',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF000435),
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    resourceDetail['description'],
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey[800],
-                    ),
-                  ),
+                        // Details section
+                        Text(
+                          'Details',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF000435),
+                          ),
+                        ),
+                        SizedBox(height: 8),
 
-                  SizedBox(height: 16),
+                        // Details cards
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.grey[100],
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Column(
+                            children: [
+                              _buildDetailItem('Author',
+                                  resourceDetail['author'], Icons.person),
+                              Divider(height: 1),
+                              _buildDetailItem('Subject',
+                                  resourceDetail['subject'], Icons.subject),
+                              Divider(height: 1),
+                              _buildDetailItem(
+                                  'Added On',
+                                  _formatDate(resourceDetail['createdAt']),
+                                  Icons.calendar_today),
+                            ],
+                          ),
+                        ),
 
-                  // Details section
-                  Text(
-                    'Details',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF000435),
-                    ),
-                  ),
-                  SizedBox(height: 8),
+                        SizedBox(height: 24),
 
-                  // Details cards
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.grey[100],
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Column(
-                      children: [
-                        _buildDetailItem('Author', resourceDetail['author'], Icons.person),
-                        Divider(height: 1),
-                        _buildDetailItem('Subject', resourceDetail['subject'], Icons.subject),
-                        Divider(height: 1),
-                        _buildDetailItem('Added On', _formatDate(resourceDetail['createdAt']), Icons.calendar_today),
+                        // PDF Open button
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: isPdfLoading ? null : downloadAndOpenPdf,
+                            icon: isPdfLoading
+                                ? SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : Icon(Icons.picture_as_pdf),
+                            label: Text(
+                                isPdfLoading ? 'Opening PDF...' : 'Open PDF'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Color(0xFFfb7e02),
+                              padding: EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                          ),
+                        ),
                       ],
-                    ),
-                  ),
-
-                  SizedBox(height: 24),
-
-                  // PDF Open button
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: isPdfLoading ? null : downloadAndOpenPdf,
-                      icon: isPdfLoading
-                          ? SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2,
-                        ),
-                      )
-                          : Icon(Icons.picture_as_pdf),
-                      label: Text(isPdfLoading ? 'Opening PDF...' : 'Open PDF'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Color(0xFFfb7e02),
-                        padding: EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
                     ),
                   ),
                 ],
               ),
             ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -640,7 +1106,7 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
           widget.title,
           style: TextStyle(color: Color(0xFF000435)),
         ),
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFFFFF3E0),
         iconTheme: IconThemeData(color: Color(0xFF000435)),
         actions: [
           if (_totalPages > 0)
@@ -707,39 +1173,42 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
       ),
       floatingActionButton: _totalPages > 0
           ? Column(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          FloatingActionButton(
-            heroTag: 'prev',
-            onPressed: _currentPage > 0
-                ? () {
-              setState(() {
-                _currentPage--;
-              });
-              // You would need PDFViewController to jump to specific page
-            }
-                : null,
-            backgroundColor: _currentPage > 0 ? Color(0xFFfb7e02) : Colors.grey,
-            child: Icon(Icons.arrow_back),
-            mini: true,
-          ),
-          SizedBox(height: 8),
-          FloatingActionButton(
-            heroTag: 'next',
-            onPressed: _currentPage < _totalPages - 1
-                ? () {
-              setState(() {
-                _currentPage++;
-              });
-              // You would need PDFViewController to jump to specific page
-            }
-                : null,
-            backgroundColor: _currentPage < _totalPages - 1 ? Color(0xFFfb7e02) : Colors.grey,
-            child: Icon(Icons.arrow_forward),
-            mini: true,
-          ),
-        ],
-      )
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                FloatingActionButton(
+                  heroTag: 'prev',
+                  onPressed: _currentPage > 0
+                      ? () {
+                          setState(() {
+                            _currentPage--;
+                          });
+                          // You would need PDFViewController to jump to specific page
+                        }
+                      : null,
+                  backgroundColor:
+                      _currentPage > 0 ? Color(0xFFfb7e02) : Colors.grey,
+                  child: Icon(Icons.arrow_back),
+                  mini: true,
+                ),
+                SizedBox(height: 8),
+                FloatingActionButton(
+                  heroTag: 'next',
+                  onPressed: _currentPage < _totalPages - 1
+                      ? () {
+                          setState(() {
+                            _currentPage++;
+                          });
+                          // You would need PDFViewController to jump to specific page
+                        }
+                      : null,
+                  backgroundColor: _currentPage < _totalPages - 1
+                      ? Color(0xFFfb7e02)
+                      : Colors.grey,
+                  child: Icon(Icons.arrow_forward),
+                  mini: true,
+                ),
+              ],
+            )
           : null,
     );
   }

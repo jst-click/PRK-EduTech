@@ -154,7 +154,7 @@ class _BartimaeusAIState extends State<BartimaeusAI> {
       appBar: AppBar(
         title: Text('Welcome to PRK AI',
             style: TextStyle(color: Color(0xFF000435))),
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFFFFF3E0),
         iconTheme: IconThemeData(color: Color(0xFF000435)),
       ),
       body: Column(

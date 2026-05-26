@@ -52,7 +52,7 @@ class _TermsState extends State<Terms> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFFFF3E0),
       appBar: AppBar(
         title: Text(
           'Terms and Conditions',
@@ -61,7 +61,7 @@ class _TermsState extends State<Terms> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFFFFF3E0),
         elevation: 0,
         centerTitle: true,
       ),

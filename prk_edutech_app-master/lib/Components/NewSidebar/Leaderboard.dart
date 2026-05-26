@@ -101,7 +101,7 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFFFF3E0),
       appBar: AppBar(
         title: Text(
           'Leaderboard',
@@ -111,7 +111,7 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
             fontSize: 20,
           ),
         ),
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFFFFF3E0),
         elevation: 0,
         centerTitle: true,
       ),

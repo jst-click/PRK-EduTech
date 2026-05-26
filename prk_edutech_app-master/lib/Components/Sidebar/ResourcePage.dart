@@ -35,7 +35,8 @@ class ResourcesPage extends StatefulWidget {
   _ResourcesPageState createState() => _ResourcesPageState();
 }
 
-class _ResourcesPageState extends State<ResourcesPage> with SingleTickerProviderStateMixin {
+class _ResourcesPageState extends State<ResourcesPage>
+    with SingleTickerProviderStateMixin {
   List<dynamic> resources = [];
   bool isLoading = true;
   String selectedCategory = 'all';
@@ -97,20 +98,24 @@ class _ResourcesPageState extends State<ResourcesPage> with SingleTickerProvider
     if (selectedCategory == 'all') {
       return resources;
     } else {
-      return resources.where((resource) => resource['contentType'] == selectedCategory).toList();
+      return resources
+          .where((resource) => resource['contentType'] == selectedCategory)
+          .toList();
     }
   }
 
   Widget _buildResourceCard(dynamic resource) {
     // Check if imageUrl is a base64 encoded string
-    bool isBase64Image = resource['imageUrl'].toString().startsWith('data:image');
+    bool isBase64Image =
+        resource['imageUrl'].toString().startsWith('data:image');
 
     return GestureDetector(
       onTap: () {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => ResourceDetailPage(resourceId: resource['_id']),
+            builder: (context) =>
+                ResourceDetailPage(resourceId: resource['_id']),
           ),
         );
       },
@@ -130,19 +135,19 @@ class _ResourcesPageState extends State<ResourcesPage> with SingleTickerProvider
                 width: double.infinity,
                 child: isBase64Image
                     ? Image.memory(
-                  base64Decode(resource['imageUrl'].split(',')[1]),
-                  fit: BoxFit.cover,
-                )
+                        base64Decode(resource['imageUrl'].split(',')[1]),
+                        fit: BoxFit.cover,
+                      )
                     : CachedNetworkImage(
-                  imageUrl: resource['imageUrl'],
-                  fit: BoxFit.cover,
-                  placeholder: (context, url) => Center(
-                    child: CircularProgressIndicator(
-                      color: Color(0xFFfb7e02),
-                    ),
-                  ),
-                  errorWidget: (context, url, error) => Icon(Icons.error),
-                ),
+                        imageUrl: resource['imageUrl'],
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) => Center(
+                          child: CircularProgressIndicator(
+                            color: Color(0xFFfb7e02),
+                          ),
+                        ),
+                        errorWidget: (context, url, error) => Icon(Icons.error),
+                      ),
               ),
             ),
             Padding(
@@ -171,7 +176,8 @@ class _ResourcesPageState extends State<ResourcesPage> with SingleTickerProvider
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.person, size: 16, color: Color(0xFFfb7e02)),
+                          Icon(Icons.person,
+                              size: 16, color: Color(0xFFfb7e02)),
                           SizedBox(width: 4),
                           Text(
                             resource['author'],
@@ -180,7 +186,8 @@ class _ResourcesPageState extends State<ResourcesPage> with SingleTickerProvider
                         ],
                       ),
                       Container(
-                        padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                         decoration: BoxDecoration(
                           color: Color(0xFFfb7e02).withOpacity(0.2),
                           borderRadius: BorderRadius.circular(12),
@@ -236,56 +243,56 @@ class _ResourcesPageState extends State<ResourcesPage> with SingleTickerProvider
       ),
       body: isLoading
           ? Center(
-        child: CircularProgressIndicator(
-          color: Color(0xFFfb7e02),
-        ),
-      )
+              child: CircularProgressIndicator(
+                color: Color(0xFFfb7e02),
+              ),
+            )
           : filteredResources.isEmpty
-          ? Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.library_books,
-              size: 80,
-              color: Color(0xFF000435).withOpacity(0.3),
-            ),
-            SizedBox(height: 16),
-            Text(
-              'No ${selectedCategory == 'notes' ? 'Notes' : 'Ebooks'} Found',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF000435),
-              ),
-            ),
-            SizedBox(height: 8),
-            ElevatedButton(
-              onPressed: () {
-                setState(() {
-                  selectedCategory = 'all';
-                  _tabController.index = 0;
-                });
-              },
-              child: Text('Show All Resources'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Color(0xFFfb7e02),
-              ),
-            ),
-          ],
-        ),
-      )
-          : RefreshIndicator(
-        onRefresh: fetchResources,
-        color: Color(0xFFfb7e02),
-        child: ListView.builder(
-          padding: EdgeInsets.symmetric(vertical: 16),
-          itemCount: filteredResources.length,
-          itemBuilder: (context, index) {
-            return _buildResourceCard(filteredResources[index]);
-          },
-        ),
-      ),
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.library_books,
+                        size: 80,
+                        color: Color(0xFF000435).withOpacity(0.3),
+                      ),
+                      SizedBox(height: 16),
+                      Text(
+                        'No ${selectedCategory == 'notes' ? 'Notes' : 'Ebooks'} Found',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF000435),
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      ElevatedButton(
+                        onPressed: () {
+                          setState(() {
+                            selectedCategory = 'all';
+                            _tabController.index = 0;
+                          });
+                        },
+                        child: Text('Show All Resources'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Color(0xFFfb7e02),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: fetchResources,
+                  color: Color(0xFFfb7e02),
+                  child: ListView.builder(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    itemCount: filteredResources.length,
+                    itemBuilder: (context, index) {
+                      return _buildResourceCard(filteredResources[index]);
+                    },
+                  ),
+                ),
       // floatingActionButton: FloatingActionButton(
       //   onPressed: () {
       //     setState(() {
@@ -382,7 +389,8 @@ class _ResourceDetailPageState extends State<ResourceDetailPage> {
       final dir = await getTemporaryDirectory();
 
       // Create a file name from the resource ID and title
-      final String fileName = '${resourceDetail['_id']}_${resourceDetail['title']}.pdf';
+      final String fileName =
+          '${resourceDetail['_id']}_${resourceDetail['title']}.pdf';
       final String filePath = '${dir.path}/$fileName';
 
       // Write the PDF to temporary storage
@@ -431,191 +439,202 @@ class _ResourceDetailPageState extends State<ResourceDetailPage> {
       ),
       body: isLoading
           ? Center(
-        child: CircularProgressIndicator(
-          color: Color(0xFFfb7e02),
-        ),
-      )
-          : SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Image section
-            Container(
-              height: 200,
-              width: double.infinity,
-              child: isBase64Image(resourceDetail['imageUrl'])
-                  ? Image.memory(
-                base64Decode(resourceDetail['imageUrl'].split(',')[1]),
-                fit: BoxFit.cover,
-              )
-                  : CachedNetworkImage(
-                imageUrl: resourceDetail['imageUrl'],
-                fit: BoxFit.cover,
-                placeholder: (context, url) => Center(
-                  child: CircularProgressIndicator(
-                    color: Color(0xFFfb7e02),
-                  ),
-                ),
-                errorWidget: (context, url, error) => Icon(Icons.error),
+              child: CircularProgressIndicator(
+                color: Color(0xFFfb7e02),
               ),
-            ),
-
-            // Content section
-            Padding(
-              padding: EdgeInsets.all(16),
+            )
+          : SingleChildScrollView(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    resourceDetail['title'],
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF000435),
-                    ),
-                  ),
-                  SizedBox(height: 8),
-
-                  // Tags row
-                  Row(
-                    children: [
-                      Container(
-                        padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: Color(0xFFfb7e02).withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          resourceDetail['contentType'].toUpperCase(),
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFFfb7e02),
+                  // Image section
+                  Container(
+                    height: 200,
+                    width: double.infinity,
+                    child: isBase64Image(resourceDetail['imageUrl'])
+                        ? Image.memory(
+                            base64Decode(
+                                resourceDetail['imageUrl'].split(',')[1]),
+                            fit: BoxFit.cover,
+                          )
+                        : CachedNetworkImage(
+                            imageUrl: resourceDetail['imageUrl'],
+                            fit: BoxFit.cover,
+                            placeholder: (context, url) => Center(
+                              child: CircularProgressIndicator(
+                                color: Color(0xFFfb7e02),
+                              ),
+                            ),
+                            errorWidget: (context, url, error) =>
+                                Icon(Icons.error),
                           ),
-                        ),
-                      ),
-                      SizedBox(width: 8),
-                      Container(
-                        padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: Color(0xFF000435).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          resourceDetail['difficultyLevel'].toUpperCase(),
+                  ),
+
+                  // Content section
+                  Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          resourceDetail['title'],
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: 24,
                             fontWeight: FontWeight.bold,
                             color: Color(0xFF000435),
                           ),
                         ),
-                      ),
-                      SizedBox(width: 8),
-                      Container(
-                        padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: resourceDetail['pricing'] == 'free'
-                              ? Colors.green.withOpacity(0.2)
-                              : Colors.red.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(12),
+                        SizedBox(height: 8),
+
+                        // Tags row
+                        Row(
+                          children: [
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: Color(0xFFfb7e02).withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                resourceDetail['contentType'].toUpperCase(),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFFfb7e02),
+                                ),
+                              ),
+                            ),
+                            SizedBox(width: 8),
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: Color(0xFF000435).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                resourceDetail['difficultyLevel'].toUpperCase(),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF000435),
+                                ),
+                              ),
+                            ),
+                            SizedBox(width: 8),
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: resourceDetail['pricing'] == 'free'
+                                    ? Colors.green.withOpacity(0.2)
+                                    : Colors.red.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                resourceDetail['pricing'].toUpperCase(),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: resourceDetail['pricing'] == 'free'
+                                      ? Colors.green
+                                      : Colors.red,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                        child: Text(
-                          resourceDetail['pricing'].toUpperCase(),
+
+                        SizedBox(height: 16),
+
+                        // Description
+                        Text(
+                          'Description',
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: 18,
                             fontWeight: FontWeight.bold,
-                            color: resourceDetail['pricing'] == 'free'
-                                ? Colors.green
-                                : Colors.red,
+                            color: Color(0xFF000435),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
+                        SizedBox(height: 8),
+                        Text(
+                          resourceDetail['description'],
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey[800],
+                          ),
+                        ),
 
-                  SizedBox(height: 16),
+                        SizedBox(height: 16),
 
-                  // Description
-                  Text(
-                    'Description',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF000435),
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    resourceDetail['description'],
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey[800],
-                    ),
-                  ),
+                        // Details section
+                        Text(
+                          'Details',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF000435),
+                          ),
+                        ),
+                        SizedBox(height: 8),
 
-                  SizedBox(height: 16),
+                        // Details cards
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.grey[100],
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Column(
+                            children: [
+                              _buildDetailItem('Author',
+                                  resourceDetail['author'], Icons.person),
+                              Divider(height: 1),
+                              _buildDetailItem('Subject',
+                                  resourceDetail['subject'], Icons.subject),
+                              Divider(height: 1),
+                              _buildDetailItem(
+                                  'Added On',
+                                  _formatDate(resourceDetail['createdAt']),
+                                  Icons.calendar_today),
+                            ],
+                          ),
+                        ),
 
-                  // Details section
-                  Text(
-                    'Details',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF000435),
-                    ),
-                  ),
-                  SizedBox(height: 8),
+                        SizedBox(height: 24),
 
-                  // Details cards
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.grey[100],
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Column(
-                      children: [
-                        _buildDetailItem('Author', resourceDetail['author'], Icons.person),
-                        Divider(height: 1),
-                        _buildDetailItem('Subject', resourceDetail['subject'], Icons.subject),
-                        Divider(height: 1),
-                        _buildDetailItem('Added On', _formatDate(resourceDetail['createdAt']), Icons.calendar_today),
+                        // PDF Open button
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: isPdfLoading ? null : downloadAndOpenPdf,
+                            icon: isPdfLoading
+                                ? SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : Icon(Icons.picture_as_pdf),
+                            label: Text(
+                                isPdfLoading ? 'Opening PDF...' : 'Open PDF'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Color(0xFFfb7e02),
+                              padding: EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                          ),
+                        ),
                       ],
-                    ),
-                  ),
-
-                  SizedBox(height: 24),
-
-                  // PDF Open button
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: isPdfLoading ? null : downloadAndOpenPdf,
-                      icon: isPdfLoading
-                          ? SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2,
-                        ),
-                      )
-                          : Icon(Icons.picture_as_pdf),
-                      label: Text(isPdfLoading ? 'Opening PDF...' : 'Open PDF'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Color(0xFFfb7e02),
-                        padding: EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
                     ),
                   ),
                 ],
               ),
             ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -750,39 +769,42 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
       ),
       floatingActionButton: _totalPages > 0
           ? Column(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          FloatingActionButton(
-            heroTag: 'prev',
-            onPressed: _currentPage > 0
-                ? () {
-              setState(() {
-                _currentPage--;
-              });
-              // You would need PDFViewController to jump to specific page
-            }
-                : null,
-            backgroundColor: _currentPage > 0 ? Color(0xFFfb7e02) : Colors.grey,
-            child: Icon(Icons.arrow_back),
-            mini: true,
-          ),
-          SizedBox(height: 8),
-          FloatingActionButton(
-            heroTag: 'next',
-            onPressed: _currentPage < _totalPages - 1
-                ? () {
-              setState(() {
-                _currentPage++;
-              });
-              // You would need PDFViewController to jump to specific page
-            }
-                : null,
-            backgroundColor: _currentPage < _totalPages - 1 ? Color(0xFFfb7e02) : Colors.grey,
-            child: Icon(Icons.arrow_forward),
-            mini: true,
-          ),
-        ],
-      )
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                FloatingActionButton(
+                  heroTag: 'prev',
+                  onPressed: _currentPage > 0
+                      ? () {
+                          setState(() {
+                            _currentPage--;
+                          });
+                          // You would need PDFViewController to jump to specific page
+                        }
+                      : null,
+                  backgroundColor:
+                      _currentPage > 0 ? Color(0xFFfb7e02) : Colors.grey,
+                  child: Icon(Icons.arrow_back),
+                  mini: true,
+                ),
+                SizedBox(height: 8),
+                FloatingActionButton(
+                  heroTag: 'next',
+                  onPressed: _currentPage < _totalPages - 1
+                      ? () {
+                          setState(() {
+                            _currentPage++;
+                          });
+                          // You would need PDFViewController to jump to specific page
+                        }
+                      : null,
+                  backgroundColor: _currentPage < _totalPages - 1
+                      ? Color(0xFFfb7e02)
+                      : Colors.grey,
+                  child: Icon(Icons.arrow_forward),
+                  mini: true,
+                ),
+              ],
+            )
           : null,
     );
   }

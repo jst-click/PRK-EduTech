@@ -102,7 +102,7 @@ class CourseDetailsPage extends StatelessWidget {
               ),
             ),
             collapsedBackgroundColor: Colors.white,
-            backgroundColor: Colors.white,
+            backgroundColor: const Color(0xFFFFF3E0),
             iconColor: const Color(0xFFFB7F03),
             collapsedIconColor: const Color(0xFFFB7F03),
             children: [

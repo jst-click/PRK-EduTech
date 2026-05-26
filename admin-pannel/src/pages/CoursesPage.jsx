@@ -30,6 +30,13 @@ function CoursesPage() {
   const [showAddForm, setShowAddForm] = useState(false)
   const [message, setMessage] = useState('')
   const [selectedCourse, setSelectedCourse] = useState(null)
+  const [updatingCourseId, setUpdatingCourseId] = useState('')
+
+  const isTopCourseEnabled = (course) => {
+    if (typeof course?.topCourseEnabled === 'boolean') return course.topCourseEnabled
+    if (typeof course?.topCourse === 'boolean') return course.topCourse
+    return false
+  }
 
   const submitCourse = async (event) => {
     event.preventDefault()
@@ -72,6 +79,27 @@ function CoursesPage() {
       refresh()
     } catch (requestError) {
       setMessage(requestError.message)
+    }
+  }
+
+  const toggleTopCourseStatus = async (course) => {
+    const nextStatus = !isTopCourseEnabled(course)
+    setUpdatingCourseId(course._id)
+    setMessage('')
+    try {
+      await apiRequest(`/api/courses/${course._id}`, {
+        token,
+        method: 'PUT',
+        body: {
+          topCourseEnabled: nextStatus,
+        },
+      })
+      setMessage(nextStatus ? 'Course enabled for Top Courses' : 'Course removed from Top Courses')
+      refresh()
+    } catch (requestError) {
+      setMessage(requestError.message)
+    } finally {
+      setUpdatingCourseId('')
     }
   }
 
@@ -211,23 +239,46 @@ function CoursesPage() {
               <th>Instructor</th>
               <th>Description</th>
               <th>Price</th>
+              <th>Toggle</th>
+              <th>Status</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={6}>Loading courses...</td>
+                <td colSpan={8}>Loading courses...</td>
               </tr>
             )}
             {!loading &&
               courses.map((course) => (
                 <tr key={course._id}>
+                  {(() => {
+                    const enabled = isTopCourseEnabled(course)
+                    const isUpdating = updatingCourseId === course._id
+                    return (
+                      <>
                   <td>{course.title}</td>
                   <td>{course.courseId}</td>
                   <td>{course.instructorName}</td>
                   <td>{truncateWords(course.about, 12)}</td>
                   <td>{course.isFree ? 'Free' : `INR ${course.price || 0}`}</td>
+                  <td>
+                    <label className="toggle-switch">
+                      <input
+                        type="checkbox"
+                        checked={enabled}
+                        onChange={() => toggleTopCourseStatus(course)}
+                        disabled={isUpdating}
+                      />
+                      <span className="toggle-slider" />
+                    </label>
+                  </td>
+                  <td>
+                    <span className={`status-pill ${enabled ? 'status-pill-enabled' : 'status-pill-disabled'}`}>
+                      {enabled ? 'Enabled' : 'Disabled'}
+                    </span>
+                  </td>
                   <td>
                     <div className="row-actions">
                       <button
@@ -246,6 +297,9 @@ function CoursesPage() {
                       </button>
                     </div>
                   </td>
+                      </>
+                    )
+                  })()}
                 </tr>
               ))}
           </tbody>
@@ -263,6 +317,10 @@ function CoursesPage() {
                 { label: 'Access', value: selectedCourse.access },
                 { label: 'Duration', value: selectedCourse.duration },
                 { label: 'Description', value: selectedCourse.about || '-' },
+                {
+                  label: 'Top Course Status',
+                  value: isTopCourseEnabled(selectedCourse) ? 'Enabled' : 'Disabled',
+                },
                 {
                   label: 'Key Features',
                   value: Array.isArray(selectedCourse.keyFeatures)

@@ -26,7 +26,8 @@ class MyApp extends StatelessWidget {
         theme: ThemeData(
           brightness: Brightness.light, // Ensures default is light mode
           primaryColor: const Color(0xFF000435),
-          scaffoldBackgroundColor: Colors.white, // Default white background for all pages
+          scaffoldBackgroundColor:
+              Colors.white, // Default white background for all pages
           colorScheme: ColorScheme.fromSeed(
             seedColor: const Color(0xFF000435),
             primary: const Color(0xFF000435),
