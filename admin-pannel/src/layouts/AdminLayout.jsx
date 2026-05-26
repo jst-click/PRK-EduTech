@@ -8,14 +8,20 @@ import CarouselPage from '../pages/CarouselPage'
 import IconsPage from '../pages/IconsPage'
 import EbooksPage from '../pages/EbooksPage'
 import TestsPage from '../pages/TestsPage'
+import FaqsPage from '../pages/FaqsPage'
+import OnlineClassesPage from '../pages/OnlineClassesPage'
+import CurrentAffairsPage from '../pages/CurrentAffairsPage'
+import TestimonialsPage from '../pages/TestimonialsPage'
+import CmsPage from '../pages/CmsPage'
 
 function AdminLayout({ user, onLogout }) {
   return (
     <div className="admin-shell">
       <aside className="sidebar">
         <div className="sidebar-brand">
-          <h1>PRK Admin</h1>
-          <p>React + Vite Panel</p>
+          <div className="sidebar-logo-wrap">
+            <img src="/img/logo-removebg-preview.png" alt="PRK Edu Power logo" className="sidebar-logo" />
+          </div>
         </div>
         <nav className="sidebar-nav">
           {navItems.map((item) => (
@@ -52,6 +58,11 @@ function AdminLayout({ user, onLogout }) {
             <Route path="/icons" element={<IconsPage />} />
             <Route path="/ebooks" element={<EbooksPage />} />
             <Route path="/tests" element={<TestsPage />} />
+            <Route path="/faqs" element={<FaqsPage />} />
+            <Route path="/online-classes" element={<OnlineClassesPage />} />
+            <Route path="/current-affairs" element={<CurrentAffairsPage />} />
+            <Route path="/testimonials" element={<TestimonialsPage />} />
+            <Route path="/cms" element={<CmsPage />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </div>

@@ -54,11 +54,19 @@ class _AllNotesPageBooksState extends State<AllNotesPageBooks> with SingleTicker
     });
 
     try {
-      final response = await http.get(Uri.parse(buildBaseUrl('resources/')));
+      http.Response? successResponse;
+      for (final endpoint in resourceListApiCandidates()) {
+        final response = await http.get(Uri.parse(endpoint));
+        if (response.statusCode == 200) {
+          successResponse = response;
+          break;
+        }
+      }
 
-      if (response.statusCode == 200) {
+      if (successResponse != null) {
+        final decoded = json.decode(successResponse.body);
         setState(() {
-          resources = json.decode(response.body);
+          resources = normalizeResourceList(decoded);
           isLoading = false;
         });
       } else {
@@ -267,13 +275,21 @@ class _ResourceDetailPageState extends State<ResourceDetailPage> {
     });
 
     try {
-      final response = await http.get(
-        Uri.parse(buildBaseUrl('resources/${widget.resourceId}')),
-      );
+      http.Response? successResponse;
+      for (final endpoint in resourceDetailApiCandidates(widget.resourceId)) {
+        final response = await http.get(Uri.parse(endpoint));
+        if (response.statusCode == 200) {
+          successResponse = response;
+          break;
+        }
+      }
 
-      if (response.statusCode == 200) {
+      if (successResponse != null) {
+        final decoded = json.decode(successResponse.body);
         setState(() {
-          resourceDetail = json.decode(response.body);
+          resourceDetail = decoded is Map<String, dynamic>
+              ? normalizeResourceItem(decoded)
+              : <String, dynamic>{};
           isLoading = false;
         });
       } else {
@@ -295,7 +311,8 @@ class _ResourceDetailPageState extends State<ResourceDetailPage> {
   }
 
   Future<void> downloadAndOpenPdf() async {
-    if (resourceDetail['pdfUrl'] == null) {
+    final pdfUrl = (resourceDetail['pdfUrl'] ?? '').toString();
+    if (pdfUrl.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('No PDF available for this resource')),
       );
@@ -308,7 +325,7 @@ class _ResourceDetailPageState extends State<ResourceDetailPage> {
 
     try {
       // Get the PDF from network
-      final response = await http.get(Uri.parse(resourceDetail['pdfUrl']));
+      final response = await http.get(Uri.parse(pdfUrl));
 
       // Get temporary directory
       final dir = await getTemporaryDirectory();
@@ -586,7 +603,8 @@ class _ResourceDetailPageState extends State<ResourceDetailPage> {
   }
 
   String _formatDate(String dateString) {
-    final DateTime date = DateTime.parse(dateString);
+    final date = DateTime.tryParse(dateString);
+    if (date == null) return 'N/A';
     return '${date.day}/${date.month}/${date.year}';
   }
 }

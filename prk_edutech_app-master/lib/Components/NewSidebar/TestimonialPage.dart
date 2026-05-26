@@ -12,23 +12,27 @@ class TestimonialPage extends StatefulWidget {
 
 class TestimonialModel {
   final String id;
-  final String type;
-  final String question;
-  final String answer;
+  final String name;
+  final String designation;
+  final String message;
+  final int rating;
 
   TestimonialModel({
     required this.id,
-    required this.type,
-    required this.question,
-    required this.answer,
+    required this.name,
+    required this.designation,
+    required this.message,
+    required this.rating,
   });
 
   factory TestimonialModel.fromJson(Map<String, dynamic> json) {
+    final parsedRating = int.tryParse((json['rating'] ?? 5).toString()) ?? 5;
     return TestimonialModel(
-      id: json['_id'],
-      type: json['type'],
-      question: json['question'],
-      answer: json['answer'],
+      id: (json['_id'] ?? '').toString(),
+      name: (json['name'] ?? json['question'] ?? '').toString(),
+      designation: (json['designation'] ?? '').toString(),
+      message: (json['message'] ?? json['answer'] ?? '').toString(),
+      rating: parsedRating.clamp(1, 5),
     );
   }
 }
@@ -47,7 +51,7 @@ class _TestimonialPageState extends State<TestimonialPage> {
   Future<void> _fetchTestimonials() async {
     try {
       final response = await http.get(
-        Uri.parse(buildBaseUrl('questions')),
+        Uri.parse(buildApiUrl('testimonials')),
       );
 
       if (response.statusCode == 200) {
@@ -55,7 +59,7 @@ class _TestimonialPageState extends State<TestimonialPage> {
 
         setState(() {
           _testimonials = jsonResponse
-              .where((item) => item['type'] == 'Testimonial')
+              .whereType<Map<String, dynamic>>()
               .map((item) => TestimonialModel.fromJson(item))
               .toList();
           _isLoading = false;
@@ -132,16 +136,36 @@ class _TestimonialPageState extends State<TestimonialPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    testimonial.question,
+                    testimonial.name,
                     style: TextStyle(
                       color: Color(0xFF000435),
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
+                  if (testimonial.designation.isNotEmpty) ...[
+                    SizedBox(height: 4),
+                    Text(
+                      testimonial.designation,
+                      style: TextStyle(
+                        color: Color(0xFF000435).withOpacity(0.7),
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                  SizedBox(height: 8),
+                  Row(
+                    children: List.generate(
+                      testimonial.rating,
+                          (index) => const Padding(
+                        padding: EdgeInsets.only(right: 2),
+                        child: Icon(Icons.star, size: 16, color: Color(0xFFDFA408)),
+                      ),
+                    ),
+                  ),
                   SizedBox(height: 8),
                   Text(
-                    testimonial.answer,
+                    testimonial.message,
                     style: TextStyle(
                       color: Color(0xFFfb7e02).withOpacity(0.9),
                       fontSize: 16,

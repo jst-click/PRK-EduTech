@@ -22,6 +22,32 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Print failed route responses with route + message for easier debugging
+app.use((req, res, next) => {
+  let responseBody;
+  const originalJson = res.json.bind(res);
+
+  res.json = (body) => {
+    responseBody = body;
+    return originalJson(body);
+  };
+
+  res.on('finish', () => {
+    if (res.statusCode < 400) return;
+
+    const route = req.originalUrl || req.url || 'unknown-route';
+    const method = req.method || 'UNKNOWN';
+    const errorMessage =
+      responseBody?.message ||
+      responseBody?.error ||
+      (typeof responseBody === 'string' ? responseBody : 'No response message');
+
+    console.error(`[ROUTE_ERROR] ${method} ${route} -> ${res.statusCode}: ${errorMessage}`);
+  });
+
+  next();
+});
+
 // MongoDB Connection
 mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://aksmlibts:amit@cluster0.vqusi.mongodb.net/?retryWrites=true&w=majority', {
   useNewUrlParser: true,
@@ -386,6 +412,105 @@ const bookSchema = new mongoose.Schema({
   pdf: { type: String }
 });
 
+const cmsSchema = new mongoose.Schema(
+  {
+    terms: { type: String, default: '' },
+    privacy: { type: String, default: '' },
+  },
+  { timestamps: true }
+);
+
+const faqSchema = new mongoose.Schema(
+  {
+    question: { type: String, required: true, trim: true },
+    answer: { type: String, required: true, trim: true },
+  },
+  { timestamps: true }
+);
+
+const currentAffairSchema = new mongoose.Schema(
+  {
+    question: { type: String, required: true, trim: true },
+    answer: { type: String, required: true, trim: true },
+    source: { type: String, default: '', trim: true },
+    publishedAt: { type: Date, default: Date.now },
+    isActive: { type: Boolean, default: true },
+  },
+  { timestamps: true }
+);
+
+const testimonialSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true, trim: true },
+    designation: { type: String, default: '', trim: true },
+    message: { type: String, required: true, trim: true },
+    rating: { type: Number, default: 5, min: 1, max: 5 },
+    isActive: { type: Boolean, default: true },
+  },
+  { timestamps: true }
+);
+
+const onlineClassSchema = new mongoose.Schema(
+  {
+    img: { type: String, default: '', trim: true },
+    title: { type: String, required: true, trim: true },
+    date: { type: String, required: true, trim: true },
+    time: { type: String, required: true, trim: true },
+    description: { type: String, required: true, trim: true },
+    isActive: { type: Boolean, default: true },
+  },
+  { timestamps: true }
+);
+
+const youtubeLinkSchema = new mongoose.Schema(
+  {
+    title: { type: String, required: true, trim: true },
+    link: { type: String, required: true, trim: true },
+    description: { type: String, required: true, trim: true },
+    isActive: { type: Boolean, default: true },
+  },
+  { timestamps: true }
+);
+
+const resumeSchema = new mongoose.Schema(
+  {
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+      index: true,
+    },
+    name: { type: String, required: true, trim: true },
+    phone: { type: String, required: true, trim: true },
+    address: { type: String, required: true, trim: true },
+    email: { type: String, required: true, trim: true, lowercase: true },
+    summary: { type: String, required: true, trim: true },
+    education: [
+      {
+        degree: { type: String, required: true, trim: true },
+        college: { type: String, required: true, trim: true },
+        location: { type: String, required: true, trim: true },
+        gpa: { type: String, default: '', trim: true },
+        coursework: { type: String, default: '', trim: true },
+        title: { type: String, default: '', trim: true },
+      },
+    ],
+    experience: [
+      {
+        company: { type: String, required: true, trim: true },
+        position: { type: String, required: true, trim: true },
+        startDate: { type: String, required: true, trim: true },
+        endDate: { type: String, default: '', trim: true },
+        location: { type: String, default: '', trim: true },
+        description: { type: String, default: '', trim: true },
+      },
+    ],
+    skills: [{ type: String, trim: true }],
+    hobbies: [{ type: String, trim: true }],
+  },
+  { timestamps: true }
+);
+
 // Create model
 
 // Create Mongoose Models
@@ -400,6 +525,13 @@ const UIComponent = mongoose.model('UIComponent', uiComponentSchema);
 const CarouselImage = mongoose.model('CarouselImage', carouselImageSchema);
 const Icon = mongoose.model('Icon', iconSchema);
 const Book = mongoose.model('Book', bookSchema);
+const CMS = mongoose.model('CMS', cmsSchema);
+const FAQ = mongoose.model('FAQ', faqSchema);
+const CurrentAffair = mongoose.model('CurrentAffair', currentAffairSchema);
+const Testimonial = mongoose.model('Testimonial', testimonialSchema);
+const OnlineClass = mongoose.model('OnlineClass', onlineClassSchema);
+const YoutubeLink = mongoose.model('YoutubeLink', youtubeLinkSchema);
+const Resume = mongoose.model('Resume', resumeSchema);
 
 const ensureEnvAdminUser = async () => {
   if (!ADMIN_EMAIL || !ADMIN_PASSWORD) {
@@ -1359,8 +1491,8 @@ app.post('/api/profile/parents', authenticateToken, async (req, res) => {
     }
   });
   
-  // Get all courses (authenticated users)
-  app.get('/api/courses', authenticateToken, async (req, res) => {
+  // Get all courses (public for app listing)
+  app.get('/api/courses', async (req, res) => {
     try {
       const courses = await Course.find();
       res.json(courses);
@@ -1369,8 +1501,8 @@ app.post('/api/profile/parents', authenticateToken, async (req, res) => {
     }
   });
   
-  // Get single course by ID (authenticated users)
-  app.get('/api/courses/:id', authenticateToken, async (req, res) => {
+  // Get single course by ID (public for app details)
+  app.get('/api/courses/:id', async (req, res) => {
     try {
       const course = await Course.findById(req.params.id);
       if (!course) {
@@ -2389,6 +2521,57 @@ app.get('/api/ebooks', async (req, res) => {
   }
 });
 
+// GET a single book by id
+app.get('/api/ebooks/:id', async (req, res) => {
+  try {
+    const book = await Book.findById(req.params.id);
+    if (!book) {
+      return res.status(404).json({ message: 'Book not found' });
+    }
+    res.json(book);
+  } catch (error) {
+    console.error('Fetch Book Error:', error);
+    res.status(500).json({ message: 'Error fetching book', error: error.message });
+  }
+});
+
+app.get('/api/ebooks/:id/download-url', async (req, res) => {
+  try {
+    const book = await Book.findById(req.params.id);
+    if (!book) {
+      return res.status(404).json({ message: 'Book not found' });
+    }
+
+    const pdfValue = (book.pdf || '').toString().trim();
+    if (!pdfValue) {
+      return res.status(404).json({ message: 'PDF not available for this book' });
+    }
+
+    // For Cloudinary image/upload PDF URLs, generate a signed download URL.
+    if (
+      /^https?:\/\//i.test(pdfValue) &&
+      pdfValue.includes('res.cloudinary.com') &&
+      pdfValue.includes('/image/upload/')
+    ) {
+      const match = pdfValue.match(/\/image\/upload\/(?:v\d+\/)?(.+)\.([a-zA-Z0-9]+)(?:\?|$)/);
+      if (match) {
+        const publicId = decodeURIComponent(match[1]);
+        const format = decodeURIComponent(match[2] || 'pdf');
+        const signedUrl = cloudinary.utils.private_download_url(publicId, format, {
+          resource_type: 'image',
+          type: 'upload',
+        });
+        return res.json({ url: signedUrl });
+      }
+    }
+
+    return res.json({ url: pdfValue });
+  } catch (error) {
+    console.error('Resolve Book PDF URL Error:', error);
+    return res.status(500).json({ message: 'Error resolving book PDF URL', error: error.message });
+  }
+});
+
 // POST new book
 app.post('/api/ebooks', multiUpload, async (req, res) => {
   try {
@@ -2476,6 +2659,671 @@ app.delete('/api/ebooks/:id', async (req, res) => {
   } catch (error) {
     console.error('Delete Book Error:', error);
     res.status(500).json({ message: 'Error deleting book', error: error.message });
+  }
+});
+
+app.get('/api/cms', async (req, res) => {
+  try {
+    const cms = await CMS.findOne();
+    if (!cms) {
+      return res.json({ terms: '', privacy: '' });
+    }
+
+    return res.json({
+      terms: cms.terms || '',
+      privacy: cms.privacy || '',
+    });
+  } catch (error) {
+    return res.status(500).json({ message: 'Error fetching CMS data', error: error.message });
+  }
+});
+
+app.put('/api/cms', authenticateToken, async (req, res) => {
+  try {
+    const { type, description } = req.body;
+    const safeType = String(type || '').trim().toLowerCase();
+
+    if (!['terms', 'privacy'].includes(safeType)) {
+      return res.status(400).json({ message: 'type must be terms or privacy' });
+    }
+
+    if (typeof description !== 'string' || description.trim() === '') {
+      return res.status(400).json({ message: 'Description is required' });
+    }
+
+    let cms = await CMS.findOne();
+    if (!cms) {
+      cms = new CMS();
+    }
+
+    cms[safeType] = description.trim();
+    await cms.save();
+
+    return res.json({
+      message: `${safeType} saved`,
+      terms: cms.terms || '',
+      privacy: cms.privacy || '',
+    });
+  } catch (error) {
+    return res.status(500).json({ message: 'Error saving CMS data', error: error.message });
+  }
+});
+
+app.get('/api/faqs', async (req, res) => {
+  try {
+    const faqs = await FAQ.find().sort({ createdAt: -1 });
+    return res.json(faqs);
+  } catch (error) {
+    return res.status(500).json({ message: 'Error fetching FAQs', error: error.message });
+  }
+});
+
+app.post('/api/faqs', authenticateToken, async (req, res) => {
+  try {
+    const question = String(req.body.question || '').trim();
+    const answer = String(req.body.answer || '').trim();
+
+    if (!question || !answer) {
+      return res.status(400).json({ message: 'Question and answer are required' });
+    }
+
+    const faq = await FAQ.create({ question, answer });
+    return res.status(201).json(faq);
+  } catch (error) {
+    return res.status(500).json({ message: 'Error creating FAQ', error: error.message });
+  }
+});
+
+app.put('/api/faqs/:id', authenticateToken, async (req, res) => {
+  try {
+    const question = String(req.body.question || '').trim();
+    const answer = String(req.body.answer || '').trim();
+
+    if (!question || !answer) {
+      return res.status(400).json({ message: 'Question and answer are required' });
+    }
+
+    const faq = await FAQ.findByIdAndUpdate(
+      req.params.id,
+      { question, answer },
+      { new: true, runValidators: true }
+    );
+
+    if (!faq) {
+      return res.status(404).json({ message: 'FAQ not found' });
+    }
+
+    return res.json(faq);
+  } catch (error) {
+    return res.status(500).json({ message: 'Error updating FAQ', error: error.message });
+  }
+});
+
+app.delete('/api/faqs/:id', authenticateToken, async (req, res) => {
+  try {
+    const faq = await FAQ.findByIdAndDelete(req.params.id);
+    if (!faq) {
+      return res.status(404).json({ message: 'FAQ not found' });
+    }
+    return res.json({ message: 'FAQ deleted successfully' });
+  } catch (error) {
+    return res.status(500).json({ message: 'Error deleting FAQ', error: error.message });
+  }
+});
+
+app.get('/api/current-affairs', async (req, res) => {
+  try {
+    const currentAffairs = await CurrentAffair.find({ isActive: true }).sort({ publishedAt: -1, createdAt: -1 });
+    return res.json(currentAffairs);
+  } catch (error) {
+    return res.status(500).json({ message: 'Error fetching current affairs', error: error.message });
+  }
+});
+
+app.post('/api/current-affairs', authenticateToken, async (req, res) => {
+  try {
+    const question = String(req.body.question || '').trim();
+    const answer = String(req.body.answer || '').trim();
+    const source = String(req.body.source || '').trim();
+    const publishedAt = req.body.publishedAt ? new Date(req.body.publishedAt) : new Date();
+
+    if (!question || !answer) {
+      return res.status(400).json({ message: 'Question and answer are required' });
+    }
+
+    if (Number.isNaN(publishedAt.getTime())) {
+      return res.status(400).json({ message: 'Invalid published date' });
+    }
+
+    const currentAffair = await CurrentAffair.create({
+      question,
+      answer,
+      source,
+      publishedAt,
+      isActive: true,
+    });
+    return res.status(201).json(currentAffair);
+  } catch (error) {
+    return res.status(500).json({ message: 'Error creating current affair', error: error.message });
+  }
+});
+
+app.put('/api/current-affairs/:id', authenticateToken, async (req, res) => {
+  try {
+    const question = String(req.body.question || '').trim();
+    const answer = String(req.body.answer || '').trim();
+    const source = String(req.body.source || '').trim();
+    const publishedAt = req.body.publishedAt ? new Date(req.body.publishedAt) : undefined;
+
+    if (!question || !answer) {
+      return res.status(400).json({ message: 'Question and answer are required' });
+    }
+
+    if (publishedAt && Number.isNaN(publishedAt.getTime())) {
+      return res.status(400).json({ message: 'Invalid published date' });
+    }
+
+    const payload = {
+      question,
+      answer,
+      source,
+      isActive: true,
+    };
+
+    if (publishedAt) {
+      payload.publishedAt = publishedAt;
+    }
+
+    const currentAffair = await CurrentAffair.findByIdAndUpdate(req.params.id, payload, {
+      new: true,
+      runValidators: true,
+    });
+
+    if (!currentAffair) {
+      return res.status(404).json({ message: 'Current affair not found' });
+    }
+
+    return res.json(currentAffair);
+  } catch (error) {
+    return res.status(500).json({ message: 'Error updating current affair', error: error.message });
+  }
+});
+
+app.delete('/api/current-affairs/:id', authenticateToken, async (req, res) => {
+  try {
+    const currentAffair = await CurrentAffair.findByIdAndDelete(req.params.id);
+    if (!currentAffair) {
+      return res.status(404).json({ message: 'Current affair not found' });
+    }
+    return res.json({ message: 'Current affair deleted successfully' });
+  } catch (error) {
+    return res.status(500).json({ message: 'Error deleting current affair', error: error.message });
+  }
+});
+
+app.get('/api/testimonials', async (req, res) => {
+  try {
+    const testimonials = await Testimonial.find({ isActive: true }).sort({ createdAt: -1 });
+    return res.json(testimonials);
+  } catch (error) {
+    return res.status(500).json({ message: 'Error fetching testimonials', error: error.message });
+  }
+});
+
+app.post('/api/testimonials', authenticateToken, async (req, res) => {
+  try {
+    const name = String(req.body.name || '').trim();
+    const designation = String(req.body.designation || '').trim();
+    const message = String(req.body.message || '').trim();
+    const rating = Number(req.body.rating || 5);
+
+    if (!name || !message) {
+      return res.status(400).json({ message: 'Name and message are required' });
+    }
+
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+      return res.status(400).json({ message: 'Rating must be an integer between 1 and 5' });
+    }
+
+    const testimonial = await Testimonial.create({
+      name,
+      designation,
+      message,
+      rating,
+      isActive: true,
+    });
+
+    return res.status(201).json(testimonial);
+  } catch (error) {
+    return res.status(500).json({ message: 'Error creating testimonial', error: error.message });
+  }
+});
+
+app.put('/api/testimonials/:id', authenticateToken, async (req, res) => {
+  try {
+    const name = String(req.body.name || '').trim();
+    const designation = String(req.body.designation || '').trim();
+    const message = String(req.body.message || '').trim();
+    const rating = Number(req.body.rating || 5);
+
+    if (!name || !message) {
+      return res.status(400).json({ message: 'Name and message are required' });
+    }
+
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+      return res.status(400).json({ message: 'Rating must be an integer between 1 and 5' });
+    }
+
+    const testimonial = await Testimonial.findByIdAndUpdate(
+      req.params.id,
+      { name, designation, message, rating, isActive: true },
+      { new: true, runValidators: true }
+    );
+
+    if (!testimonial) {
+      return res.status(404).json({ message: 'Testimonial not found' });
+    }
+
+    return res.json(testimonial);
+  } catch (error) {
+    return res.status(500).json({ message: 'Error updating testimonial', error: error.message });
+  }
+});
+
+app.delete('/api/testimonials/:id', authenticateToken, async (req, res) => {
+  try {
+    const testimonial = await Testimonial.findByIdAndDelete(req.params.id);
+    if (!testimonial) {
+      return res.status(404).json({ message: 'Testimonial not found' });
+    }
+    return res.json({ message: 'Testimonial deleted successfully' });
+  } catch (error) {
+    return res.status(500).json({ message: 'Error deleting testimonial', error: error.message });
+  }
+});
+
+app.get('/api/online-classes', async (req, res) => {
+  try {
+    const onlineClasses = await OnlineClass.find({ isActive: true }).sort({ createdAt: -1 });
+    return res.json(onlineClasses);
+  } catch (error) {
+    return res.status(500).json({ message: 'Error fetching online classes', error: error.message });
+  }
+});
+
+app.post('/api/online-classes', authenticateToken, upload.single('img'), async (req, res) => {
+  try {
+    const title = String(req.body.title || '').trim();
+    const date = String(req.body.date || '').trim();
+    const time = String(req.body.time || '').trim();
+    const description = String(req.body.description || '').trim();
+
+    if (!title || !date || !time || !description) {
+      return res.status(400).json({ message: 'Title, date, time, and description are required' });
+    }
+
+    const onlineClass = await OnlineClass.create({
+      img: req.file?.path || '',
+      title,
+      date,
+      time,
+      description,
+      isActive: true,
+    });
+
+    return res.status(201).json(onlineClass);
+  } catch (error) {
+    return res.status(500).json({ message: 'Error creating online class', error: error.message });
+  }
+});
+
+app.put('/api/online-classes/:id', authenticateToken, upload.single('img'), async (req, res) => {
+  try {
+    const title = String(req.body.title || '').trim();
+    const date = String(req.body.date || '').trim();
+    const time = String(req.body.time || '').trim();
+    const description = String(req.body.description || '').trim();
+
+    if (!title || !date || !time || !description) {
+      return res.status(400).json({ message: 'Title, date, time, and description are required' });
+    }
+
+    const updateData = { title, date, time, description, isActive: true };
+    if (req.file?.path) {
+      updateData.img = req.file.path;
+    }
+
+    const onlineClass = await OnlineClass.findByIdAndUpdate(req.params.id, updateData, {
+      new: true,
+      runValidators: true,
+    });
+
+    if (!onlineClass) {
+      return res.status(404).json({ message: 'Online class not found' });
+    }
+
+    return res.json(onlineClass);
+  } catch (error) {
+    return res.status(500).json({ message: 'Error updating online class', error: error.message });
+  }
+});
+
+app.delete('/api/online-classes/:id', authenticateToken, async (req, res) => {
+  try {
+    const onlineClass = await OnlineClass.findByIdAndDelete(req.params.id);
+    if (!onlineClass) {
+      return res.status(404).json({ message: 'Online class not found' });
+    }
+
+    return res.json({ message: 'Online class deleted successfully' });
+  } catch (error) {
+    return res.status(500).json({ message: 'Error deleting online class', error: error.message });
+  }
+});
+
+app.get('/api/youtube-links', async (req, res) => {
+  try {
+    const youtubeLinks = await YoutubeLink.find({ isActive: true }).sort({ createdAt: -1 });
+    return res.json(youtubeLinks);
+  } catch (error) {
+    return res.status(500).json({ message: 'Error fetching youtube links', error: error.message });
+  }
+});
+
+app.post('/api/youtube-links', authenticateToken, async (req, res) => {
+  try {
+    const title = String(req.body.title || '').trim();
+    const link = String(req.body.link || '').trim();
+    const description = String(req.body.description || '').trim();
+
+    if (!title || !link || !description) {
+      return res.status(400).json({ message: 'Title, link, and description are required' });
+    }
+
+    const youtubeLink = await YoutubeLink.create({
+      title,
+      link,
+      description,
+      isActive: true,
+    });
+
+    return res.status(201).json(youtubeLink);
+  } catch (error) {
+    return res.status(500).json({ message: 'Error creating youtube link', error: error.message });
+  }
+});
+
+app.put('/api/youtube-links/:id', authenticateToken, async (req, res) => {
+  try {
+    const title = String(req.body.title || '').trim();
+    const link = String(req.body.link || '').trim();
+    const description = String(req.body.description || '').trim();
+
+    if (!title || !link || !description) {
+      return res.status(400).json({ message: 'Title, link, and description are required' });
+    }
+
+    const youtubeLink = await YoutubeLink.findByIdAndUpdate(
+      req.params.id,
+      { title, link, description, isActive: true },
+      { new: true, runValidators: true }
+    );
+
+    if (!youtubeLink) {
+      return res.status(404).json({ message: 'Youtube link not found' });
+    }
+
+    return res.json(youtubeLink);
+  } catch (error) {
+    return res.status(500).json({ message: 'Error updating youtube link', error: error.message });
+  }
+});
+
+app.delete('/api/youtube-links/:id', authenticateToken, async (req, res) => {
+  try {
+    const youtubeLink = await YoutubeLink.findByIdAndDelete(req.params.id);
+    if (!youtubeLink) {
+      return res.status(404).json({ message: 'Youtube link not found' });
+    }
+
+    return res.json({ message: 'Youtube link deleted successfully' });
+  } catch (error) {
+    return res.status(500).json({ message: 'Error deleting youtube link', error: error.message });
+  }
+});
+
+app.post('/api/resumes', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized user' });
+    }
+
+    const payload = req.body || {};
+
+    const education = Array.isArray(payload.education)
+      ? payload.education.map((item) => ({
+          degree: String(item?.degree || '').trim(),
+          college: String(item?.college || '').trim(),
+          location: String(item?.location || '').trim(),
+          gpa: String(item?.gpa || '').trim(),
+          coursework: String(item?.coursework || '').trim(),
+          title: String(item?.title || '').trim(),
+        }))
+      : [];
+
+    const experience = Array.isArray(payload.experience)
+      ? payload.experience.map((item) => ({
+          company: String(item?.company || '').trim(),
+          position: String(item?.position || '').trim(),
+          startDate: String(item?.startDate || '').trim(),
+          endDate: String(item?.endDate || '').trim(),
+          location: String(item?.location || '').trim(),
+          description: String(item?.description || '').trim(),
+        }))
+      : [];
+
+    const skills = Array.isArray(payload.skills)
+      ? payload.skills.map((item) => String(item || '').trim()).filter(Boolean)
+      : [];
+
+    const hobbies = Array.isArray(payload.hobbies)
+      ? payload.hobbies.map((item) => String(item || '').trim()).filter(Boolean)
+      : [];
+
+    const resumeData = {
+      userId,
+      name: String(payload.name || '').trim(),
+      phone: String(payload.phone || '').trim(),
+      address: String(payload.address || '').trim(),
+      email: String(payload.email || '').trim().toLowerCase(),
+      summary: String(payload.summary || '').trim(),
+      education,
+      experience,
+      skills,
+      hobbies,
+    };
+
+    if (!resumeData.name || !resumeData.phone || !resumeData.address || !resumeData.email || !resumeData.summary) {
+      return res.status(400).json({ message: 'Name, phone, address, email, and summary are required' });
+    }
+
+    if (!education.length || education.some((item) => !item.degree || !item.college || !item.location)) {
+      return res.status(400).json({ message: 'Each education entry needs degree, college, and location' });
+    }
+
+    if (!experience.length || experience.some((item) => !item.company || !item.position || !item.startDate)) {
+      return res.status(400).json({ message: 'Each experience entry needs company, position, and start date' });
+    }
+
+    const resume = await Resume.create(resumeData);
+    return res.status(201).json(resume);
+  } catch (error) {
+    return res.status(500).json({ message: 'Error saving resume', error: error.message });
+  }
+});
+
+app.get('/api/resumes', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized user' });
+    }
+
+    const resumes = await Resume.find({ userId }).sort({ createdAt: -1 });
+    return res.json(resumes);
+  } catch (error) {
+    return res.status(500).json({ message: 'Error fetching resumes', error: error.message });
+  }
+});
+
+app.get('/api/resumes/:id', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized user' });
+    }
+
+    const resume = await Resume.findOne({ _id: req.params.id, userId });
+    if (!resume) {
+      return res.status(404).json({ message: 'Resume not found' });
+    }
+
+    return res.json(resume);
+  } catch (error) {
+    return res.status(500).json({ message: 'Error fetching resume', error: error.message });
+  }
+});
+
+app.put('/api/resumes/:id', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized user' });
+    }
+
+    const payload = req.body || {};
+    const updateData = {};
+
+    if (payload.name !== undefined) updateData.name = String(payload.name || '').trim();
+    if (payload.phone !== undefined) updateData.phone = String(payload.phone || '').trim();
+    if (payload.address !== undefined) updateData.address = String(payload.address || '').trim();
+    if (payload.email !== undefined) updateData.email = String(payload.email || '').trim().toLowerCase();
+    if (payload.summary !== undefined) updateData.summary = String(payload.summary || '').trim();
+
+    if (Array.isArray(payload.education)) {
+      updateData.education = payload.education.map((item) => ({
+        degree: String(item?.degree || '').trim(),
+        college: String(item?.college || '').trim(),
+        location: String(item?.location || '').trim(),
+        gpa: String(item?.gpa || '').trim(),
+        coursework: String(item?.coursework || '').trim(),
+        title: String(item?.title || '').trim(),
+      }));
+    }
+
+    if (Array.isArray(payload.experience)) {
+      updateData.experience = payload.experience.map((item) => ({
+        company: String(item?.company || '').trim(),
+        position: String(item?.position || '').trim(),
+        startDate: String(item?.startDate || '').trim(),
+        endDate: String(item?.endDate || '').trim(),
+        location: String(item?.location || '').trim(),
+        description: String(item?.description || '').trim(),
+      }));
+    }
+
+    if (Array.isArray(payload.skills)) {
+      updateData.skills = payload.skills.map((item) => String(item || '').trim()).filter(Boolean);
+    }
+
+    if (Array.isArray(payload.hobbies)) {
+      updateData.hobbies = payload.hobbies.map((item) => String(item || '').trim()).filter(Boolean);
+    }
+
+    const resume = await Resume.findOneAndUpdate(
+      { _id: req.params.id, userId },
+      updateData,
+      { new: true, runValidators: true }
+    );
+
+    if (!resume) {
+      return res.status(404).json({ message: 'Resume not found' });
+    }
+
+    return res.json(resume);
+  } catch (error) {
+    return res.status(500).json({ message: 'Error updating resume', error: error.message });
+  }
+});
+
+app.delete('/api/resumes/:id', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized user' });
+    }
+
+    const resume = await Resume.findOneAndDelete({ _id: req.params.id, userId });
+    if (!resume) {
+      return res.status(404).json({ message: 'Resume not found' });
+    }
+
+    return res.json({ message: 'Resume deleted successfully' });
+  } catch (error) {
+    return res.status(500).json({ message: 'Error deleting resume', error: error.message });
+  }
+});
+
+// Legacy endpoint used by existing app FAQ page.
+app.get(['/api/questions', '/questions'], async (req, res) => {
+  try {
+    const [faqs, currentAffairs, testimonials] = await Promise.all([
+      FAQ.find().sort({ createdAt: -1 }),
+      CurrentAffair.find({ isActive: true }).sort({ publishedAt: -1, createdAt: -1 }),
+      Testimonial.find({ isActive: true }).sort({ createdAt: -1 }),
+    ]);
+
+    const faqQuestions = faqs.map((faq) => ({
+      _id: faq._id,
+      type: 'faq',
+      question: faq.question,
+      answer: faq.answer,
+      createdAt: faq.createdAt,
+      updatedAt: faq.updatedAt,
+    }));
+
+    const currentAffairQuestions = currentAffairs.map((item) => ({
+      _id: item._id,
+      type: 'currentAffairs',
+      question: item.question,
+      answer: item.answer,
+      source: item.source,
+      publishedAt: item.publishedAt,
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt,
+    }));
+
+    const testimonialQuestions = testimonials.map((item) => ({
+      _id: item._id,
+      type: 'Testimonial',
+      question: item.name,
+      answer: item.message,
+      designation: item.designation,
+      rating: item.rating,
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt,
+    }));
+
+    const questions = [...currentAffairQuestions, ...faqQuestions, ...testimonialQuestions].sort((a, b) => {
+      const dateA = new Date(a.publishedAt || a.createdAt || 0).getTime();
+      const dateB = new Date(b.publishedAt || b.createdAt || 0).getTime();
+      return dateB - dateA;
+    });
+
+    return res.json(questions);
+  } catch (error) {
+    return res.status(500).json({ message: 'Error fetching questions', error: error.message });
   }
 });
 
@@ -2649,6 +3497,19 @@ app.get('/api/tests/:id/details', async (req, res) => {
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
+});
+
+// Global fallback for unhandled route errors
+app.use((err, req, res, next) => {
+  const route = req.originalUrl || req.url || 'unknown-route';
+  const method = req.method || 'UNKNOWN';
+  console.error(`[UNHANDLED_ROUTE_ERROR] ${method} ${route}`, err);
+
+  if (res.headersSent) {
+    return next(err);
+  }
+
+  return res.status(500).json({ message: 'Internal server error' });
 });
 
   

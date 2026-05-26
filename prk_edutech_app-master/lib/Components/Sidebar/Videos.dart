@@ -67,9 +67,20 @@ class _AllVideosPageState extends State<AllVideosPage> {
       final response = await http.get(Uri.parse(buildBaseUrl('videos/')));
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = json.decode(response.body);
+        final decoded = json.decode(response.body);
+        final List<dynamic> data = decoded is List
+            ? decoded
+            : (decoded is Map<String, dynamic> && decoded['data'] is List)
+                ? decoded['data'] as List<dynamic>
+                : (decoded is Map<String, dynamic> && decoded['videos'] is List)
+                    ? decoded['videos'] as List<dynamic>
+                    : <dynamic>[];
         setState(() {
-          videos = data.map((json) => VideoModel.fromJson(json)).toList();
+          videos = data
+              .whereType<Map<String, dynamic>>()
+              .map(VideoModel.fromJson)
+              .where((video) => video.id.isNotEmpty || video.title.isNotEmpty)
+              .toList();
           filteredVideos = List.from(videos);
           isLoading = false;
         });
@@ -140,7 +151,7 @@ class _AllVideosPageState extends State<AllVideosPage> {
                 : filteredVideos.isEmpty
                 ? const Center(
               child: Text(
-                'No videos found with the selected filters',
+                'Coming soon',
                 style: TextStyle(fontSize: 16, color: Colors.grey),
               ),
             )
@@ -748,11 +759,11 @@ class VideoModel {
   factory VideoModel.fromJson(Map<String, dynamic> json) {
     return VideoModel(
       id: json['_id'] ?? '',
-      title: json['title'] ?? '',
+      title: (json['title'] ?? 'Untitled Video').toString(),
       videoUrl: json['videoUrl'] ?? '',
-      description: json['description'] ?? '',
-      author: json['author'] ?? '',
-      chapterName: json['chapterName'] ?? '',
+      description: (json['description'] ?? 'No description available').toString(),
+      author: (json['author'] ?? 'Unknown Author').toString(),
+      chapterName: (json['chapterName'] ?? 'General').toString(),
       thumbnailUrl: json['thumbnailUrl'] ?? '',
       isFree: json['isFree'] ?? true,
       isLive: json['isLive'] ?? false,

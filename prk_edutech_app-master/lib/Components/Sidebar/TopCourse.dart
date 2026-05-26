@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:testing1/Auth/TokenManager.dart';
 import 'package:testing1/constants.dart';
 
 class Course {
@@ -38,27 +39,35 @@ class Course {
   });
 
   factory Course.fromJson(Map<String, dynamic> json) {
-    bool isBase64Image = json['imageUrl'] != null &&
-        json['imageUrl'].startsWith('data:image');
+    final imageValue = (json['imageUrl'] ?? '').toString();
+    final isBase64Image = imageValue.startsWith('data:image');
 
     Uint8List? imageBytes;
     if (isBase64Image) {
-      final base64Str = json['imageUrl'].split(',')[1]; // Remove data:image/png;base64,
-      imageBytes = base64Decode(base64Str);
+      try {
+        final base64Str = imageValue.split(',')[1];
+        imageBytes = base64Decode(base64Str);
+      } catch (_) {
+        imageBytes = null;
+      }
     }
+
+    final parsedStartDate = DateTime.tryParse((json['startDate'] ?? '').toString());
+    final parsedEndDate = DateTime.tryParse((json['endDate'] ?? '').toString());
+
     return Course(
-      id: json['_id'],
-      courseName: json['courseName'],
-      description: json['description'],
-      instructorName: json['instructorName'],
-      duration: json['duration'],
-      startDate: DateTime.parse(json['startDate']),
-      endDate: DateTime.parse(json['endDate']),
-      imageUrl: json['imageUrl'],
-      language: json['language'],
-      mode: json['mode'],
-      topCourse: json['topCourse'],
-      paid: json['paid'],
+      id: (json['_id'] ?? '').toString(),
+      courseName: (json['courseName'] ?? 'Untitled Course').toString(),
+      description: (json['description'] ?? 'No description available').toString(),
+      instructorName: (json['instructorName'] ?? 'Unknown Instructor').toString(),
+      duration: (json['duration'] ?? 'N/A').toString(),
+      startDate: parsedStartDate ?? DateTime.now(),
+      endDate: parsedEndDate ?? (parsedStartDate ?? DateTime.now()),
+      imageUrl: imageValue,
+      language: (json['language'] ?? 'N/A').toString(),
+      mode: (json['mode'] ?? 'N/A').toString(),
+      topCourse: json['topCourse'] == true,
+      paid: json['paid'] == true,
       isBase64: isBase64Image,
       imageBytes: imageBytes,
     );
@@ -85,23 +94,50 @@ class _TopCoursePageState extends State<TopCoursePage> {
 
   Future<void> fetchTopCourses() async {
     try {
-      final response = await http.get(
-        Uri.parse(buildApiUrl('courses')),
-      );
+      final token = await TokenManager.getToken();
+      final headers = <String, String>{'Content-Type': 'application/json'};
+      if (token != null && token.isNotEmpty) {
+        headers['Authorization'] = 'Bearer $token';
+      }
 
-      if (response.statusCode == 200) {
-        final List<dynamic> jsonResponse = json.decode(response.body);
+      final endpoints = <String>[
+        buildApiUrl('courses'),
+        buildBaseUrl('courses'),
+      ];
+
+      http.Response? successResponse;
+      int? lastStatusCode;
+      for (final endpoint in endpoints) {
+        final response = await http.get(Uri.parse(endpoint), headers: headers);
+        lastStatusCode = response.statusCode;
+        if (response.statusCode == 200) {
+          successResponse = response;
+          break;
+        }
+      }
+
+      if (successResponse != null) {
+        final decoded = json.decode(successResponse.body);
+        final List<dynamic> jsonResponse = decoded is List
+            ? decoded
+            : (decoded is Map<String, dynamic> && decoded['data'] is List)
+                ? decoded['data'] as List<dynamic>
+                : <dynamic>[];
         setState(() {
           // Filter only top courses
           topCourses = jsonResponse
-              .map((course) => Course.fromJson(course))
+              .whereType<Map<String, dynamic>>()
+              .map(Course.fromJson)
+              .where((course) => course.id.isNotEmpty)
               .where((course) => course.topCourse)
               .toList();
           isLoading = false;
         });
       } else {
         setState(() {
-          errorMessage = 'Failed to load top courses';
+          errorMessage = lastStatusCode == 401
+              ? 'Session expired. Please login again.'
+              : 'Failed to load top courses';
           isLoading = false;
         });
       }
@@ -140,7 +176,7 @@ class _TopCoursePageState extends State<TopCoursePage> {
             ? Center(
           child: Text(
             errorMessage!,
-            style: const TextStyle(color: Colors.white),
+            style: const TextStyle(color: Color(0xFF000435)),
           ),
         )
             : topCourses.isEmpty
@@ -155,7 +191,7 @@ class _TopCoursePageState extends State<TopCoursePage> {
               ),
               const SizedBox(height: 20),
               Text(
-                'No Top Courses Available',
+                'Coming soon',
                 style: TextStyle(
                   color: const Color(0xFFfb7e02),
                   fontSize: 18,

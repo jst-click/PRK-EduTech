@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import PageHeader from '../components/common/PageHeader'
+import DetailsModal from '../components/common/DetailsModal'
 import { getStoredSession } from '../services/authStorage'
 import { apiRequest } from '../services/apiClient'
 
@@ -10,6 +11,7 @@ function UsersPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
+  const [selectedUser, setSelectedUser] = useState(null)
 
   const searchUsers = useCallback(async () => {
     if (!query.trim()) return
@@ -98,6 +100,9 @@ function UsersPage() {
                 <td>{user.phone}</td>
                 <td>
                   <div className="row-actions">
+                    <button type="button" className="btn btn-secondary" onClick={() => setSelectedUser(user)}>
+                      View
+                    </button>
                     <button
                       type="button"
                       className="btn btn-secondary"
@@ -126,6 +131,23 @@ function UsersPage() {
           </tbody>
         </table>
       </div>
+      <DetailsModal
+        title="User Details"
+        details={
+          selectedUser
+            ? [
+                { label: 'Name', value: selectedUser.name },
+                { label: 'Email', value: selectedUser.email },
+                { label: 'Phone', value: selectedUser.phone || '-' },
+                {
+                  label: 'Complete Profile',
+                  value: JSON.stringify(selectedUser, null, 2),
+                },
+              ]
+            : null
+        }
+        onClose={() => setSelectedUser(null)}
+      />
     </section>
   )
 }

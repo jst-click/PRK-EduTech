@@ -12,23 +12,20 @@ class FAQ extends StatefulWidget {
 
 class TestimonialModel {
   final String id;
-  final String type;
   final String question;
   final String answer;
 
   TestimonialModel({
     required this.id,
-    required this.type,
     required this.question,
     required this.answer,
   });
 
   factory TestimonialModel.fromJson(Map<String, dynamic> json) {
     return TestimonialModel(
-      id: json['_id'],
-      type: json['type'],
-      question: json['question'],
-      answer: json['answer'],
+      id: (json['_id'] ?? '').toString(),
+      question: (json['question'] ?? '').toString(),
+      answer: (json['answer'] ?? '').toString(),
     );
   }
 }
@@ -47,7 +44,7 @@ class _FAQState extends State<FAQ> {
   Future<void> _fetchTestimonials() async {
     try {
       final response = await http.get(
-        Uri.parse(buildBaseUrl('questions')),
+        Uri.parse(buildApiUrl('faqs')),
       );
 
       if (response.statusCode == 200) {
@@ -55,7 +52,7 @@ class _FAQState extends State<FAQ> {
 
         setState(() {
           _testimonials = jsonResponse
-              .where((item) => item['type'] == 'faq')
+              .whereType<Map<String, dynamic>>()
               .map((item) => TestimonialModel.fromJson(item))
               .toList();
           _isLoading = false;

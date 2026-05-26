@@ -451,13 +451,36 @@ class Test {
     required this.duration,
   });
 
+  static String _stringOrFallback(
+    dynamic value, {
+    String fallback = '',
+  }) {
+    final text = value?.toString().trim() ?? '';
+    return text.isEmpty ? fallback : text;
+  }
+
+  static int _intOrZero(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
   factory Test.fromJson(Map<String, dynamic> json) {
     return Test(
-      id: json['_id'],
-      title: json['title'],
-      topic: json['topic'],
-      description: json['description'],
-      duration: json['duration'],
+      id: _stringOrFallback(json['_id']),
+      title: _stringOrFallback(
+        json['title'],
+        fallback: _stringOrFallback(json['name'], fallback: 'Untitled Test'),
+      ),
+      topic: _stringOrFallback(
+        json['topic'],
+        fallback: _stringOrFallback(json['testType'], fallback: 'General'),
+      ),
+      description: _stringOrFallback(
+        json['description'],
+        fallback: 'No description available',
+      ),
+      duration: _intOrZero(json['duration']),
     );
   }
 }
@@ -478,12 +501,28 @@ class Question {
   });
 
   factory Question.fromJson(Map<String, dynamic> json) {
+    final rawOptions = json['options'];
+    final optionsMap = rawOptions is Map
+        ? rawOptions.map(
+            (key, value) => MapEntry(
+              key.toString(),
+              (value ?? '').toString(),
+            ),
+          )
+        : <String, String>{};
+
     return Question(
-      number: json['number'],
-      questionText: json['questionText'],
-      options: Map<String, String>.from(json['options']),
-      correctOption: json['correctOption'],
-      solution: json['solution'],
+      number: Test._intOrZero(json['number']),
+      questionText: Test._stringOrFallback(
+        json['questionText'],
+        fallback: 'Question not available',
+      ),
+      options: optionsMap.cast<String, String>(),
+      correctOption: Test._stringOrFallback(json['correctOption']),
+      solution: Test._stringOrFallback(
+        json['solution'],
+        fallback: 'Solution not available',
+      ),
     );
   }
 }
@@ -506,15 +545,32 @@ class TestDetail {
   });
 
   factory TestDetail.fromJson(Map<String, dynamic> json) {
+    final rawQuestions = json['questions'];
+    final questionList = rawQuestions is List
+        ? rawQuestions
+            .whereType<Map<String, dynamic>>()
+            .map(Question.fromJson)
+            .toList()
+        : <Question>[];
+
     return TestDetail(
-      title: json['title'],
-      topic: json['topic'],
-      description: json['description'],
-      duration: json['duration'],
-      questionCount: json['questionCount'],
-      questions: List<Question>.from(
-        json['questions'].map((q) => Question.fromJson(q)),
+      title: Test._stringOrFallback(
+        json['title'],
+        fallback: 'Test Details',
       ),
+      topic: Test._stringOrFallback(
+        json['topic'],
+        fallback: Test._stringOrFallback(json['testType'], fallback: 'General'),
+      ),
+      description: Test._stringOrFallback(
+        json['description'],
+        fallback: 'No description available',
+      ),
+      duration: Test._intOrZero(json['duration']),
+      questionCount: Test._intOrZero(json['questionCount']) == 0
+          ? questionList.length
+          : Test._intOrZero(json['questionCount']),
+      questions: questionList,
     );
   }
 }
@@ -549,9 +605,20 @@ class _AllTestsPageState extends State<AllTestsPage> {
       );
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = json.decode(response.body);
+        final decoded = json.decode(response.body);
+        final List<dynamic> data = decoded is List
+            ? decoded
+            : (decoded is Map<String, dynamic> && decoded['data'] is List)
+                ? decoded['data'] as List<dynamic>
+                : (decoded is Map<String, dynamic> && decoded['tests'] is List)
+                    ? decoded['tests'] as List<dynamic>
+                    : <dynamic>[];
         setState(() {
-          tests = data.map((item) => Test.fromJson(item)).toList();
+          tests = data
+              .whereType<Map<String, dynamic>>()
+              .map(Test.fromJson)
+              .where((test) => test.id.isNotEmpty)
+              .toList();
           isLoading = false;
         });
       } else {
@@ -601,7 +668,7 @@ class _AllTestsPageState extends State<AllTestsPage> {
       )
           : tests.isEmpty
           ? const Center(
-        child: Text('No tests available'),
+        child: Text('Coming soon'),
       )
           : RefreshIndicator(
         onRefresh: fetchTests,
@@ -762,7 +829,12 @@ class _TestDetailPageState extends State<TestDetailPage> {
       );
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final decoded = json.decode(response.body);
+        final data = decoded is Map<String, dynamic>
+            ? (decoded['data'] is Map<String, dynamic>
+                ? decoded['data'] as Map<String, dynamic>
+                : decoded)
+            : <String, dynamic>{};
         setState(() {
           testDetail = TestDetail.fromJson(data);
           isLoading = false;

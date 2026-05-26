@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import PageHeader from '../components/common/PageHeader'
+import DetailsModal from '../components/common/DetailsModal'
 import { useApiData } from '../hooks/useApiData'
 import { getStoredSession } from '../services/authStorage'
 import { apiRequest } from '../services/apiClient'
+import { truncateWords } from '../utils/text'
 
 const initialForm = {
   title: '',
@@ -25,7 +27,9 @@ function CoursesPage() {
   const { token } = getStoredSession()
   const { data: courses, loading, error, refresh } = useApiData('/api/courses')
   const [form, setForm] = useState(initialForm)
+  const [showAddForm, setShowAddForm] = useState(false)
   const [message, setMessage] = useState('')
+  const [selectedCourse, setSelectedCourse] = useState(null)
 
   const submitCourse = async (event) => {
     event.preventDefault()
@@ -54,6 +58,7 @@ function CoursesPage() {
       })
       setMessage('Course created')
       setForm(initialForm)
+      setShowAddForm(false)
       refresh()
     } catch (requestError) {
       setMessage(requestError.message)
@@ -72,114 +77,129 @@ function CoursesPage() {
 
   return (
     <section className="card">
-      <PageHeader title="Courses" description="Manage all courses available in app" />
-      <form className="grid-form two-cols" onSubmit={submitCourse}>
-        <input
-          placeholder="Title"
-          value={form.title}
-          onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
-          required
-        />
-        <input
-          placeholder="Course ID"
-          value={form.courseId}
-          onChange={(event) => setForm((prev) => ({ ...prev, courseId: event.target.value }))}
-          required
-        />
-        <input
-          placeholder="Duration"
-          value={form.duration}
-          onChange={(event) => setForm((prev) => ({ ...prev, duration: event.target.value }))}
-          required
-        />
-        <input
-          placeholder="Instructor"
-          value={form.instructorName}
-          onChange={(event) => setForm((prev) => ({ ...prev, instructorName: event.target.value }))}
-          required
-        />
-        <input
-          placeholder="Language"
-          value={form.language}
-          onChange={(event) => setForm((prev) => ({ ...prev, language: event.target.value }))}
-          required
-        />
-        <select
-          value={form.access}
-          onChange={(event) => setForm((prev) => ({ ...prev, access: event.target.value }))}
-        >
-          <option value="online">Online</option>
-          <option value="offline">Offline</option>
-          <option value="both">Both</option>
-        </select>
-        <label>
-          <span>Start date</span>
+      <PageHeader
+        title="Courses"
+        description="Manage all courses available in app"
+        action={
+          <button type="button" className="btn" onClick={() => setShowAddForm((prev) => !prev)}>
+            {showAddForm ? 'Close Form' : 'Add Course'}
+          </button>
+        }
+      />
+      {showAddForm && (
+        <form className="grid-form two-cols" onSubmit={submitCourse}>
           <input
-            type="date"
-            value={form.startDate}
-            onChange={(event) => setForm((prev) => ({ ...prev, startDate: event.target.value }))}
+            placeholder="Title"
+            value={form.title}
+            onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
             required
           />
-        </label>
-        <label>
-          <span>End date</span>
           <input
-            type="date"
-            value={form.endDate}
-            onChange={(event) => setForm((prev) => ({ ...prev, endDate: event.target.value }))}
+            placeholder="Course ID"
+            value={form.courseId}
+            onChange={(event) => setForm((prev) => ({ ...prev, courseId: event.target.value }))}
             required
           />
-        </label>
-        <input
-          placeholder="Key features (comma separated)"
-          value={form.keyFeatures}
-          onChange={(event) => setForm((prev) => ({ ...prev, keyFeatures: event.target.value }))}
-        />
-        <select
-          value={form.difficulty}
-          onChange={(event) => setForm((prev) => ({ ...prev, difficulty: event.target.value }))}
-        >
-          <option>Beginner</option>
-          <option>Intermediate</option>
-          <option>Advanced</option>
-        </select>
-        <select
-          value={form.isFree}
-          onChange={(event) => setForm((prev) => ({ ...prev, isFree: event.target.value }))}
-        >
-          <option value="false">Paid Course</option>
-          <option value="true">Free Course</option>
-        </select>
-        <input
-          type="number"
-          min="0"
-          value={form.price}
-          onChange={(event) => setForm((prev) => ({ ...prev, price: event.target.value }))}
-          placeholder="Price"
-        />
-        <textarea
-          placeholder="About course"
-          value={form.about}
-          onChange={(event) => setForm((prev) => ({ ...prev, about: event.target.value }))}
-          required
-        />
-        <label>
-          <span>Thumbnail</span>
           <input
-            type="file"
-            accept="image/*"
-            onChange={(event) =>
-              setForm((prev) => ({
-                ...prev,
-                thumbnail: event.target.files && event.target.files[0] ? event.target.files[0] : null,
-              }))
-            }
+            placeholder="Duration"
+            value={form.duration}
+            onChange={(event) => setForm((prev) => ({ ...prev, duration: event.target.value }))}
+            required
           />
-        </label>
-        <button className="btn" type="submit">
-          Add Course
-        </button>
-      </form>
+          <input
+            placeholder="Instructor"
+            value={form.instructorName}
+            onChange={(event) => setForm((prev) => ({ ...prev, instructorName: event.target.value }))}
+            required
+          />
+          <input
+            placeholder="Language"
+            value={form.language}
+            onChange={(event) => setForm((prev) => ({ ...prev, language: event.target.value }))}
+            required
+          />
+          <select
+            value={form.access}
+            onChange={(event) => setForm((prev) => ({ ...prev, access: event.target.value }))}
+          >
+            <option value="online">Online</option>
+            <option value="offline">Offline</option>
+            <option value="both">Both</option>
+          </select>
+          <label>
+            <span>Start date</span>
+            <input
+              type="date"
+              value={form.startDate}
+              onChange={(event) => setForm((prev) => ({ ...prev, startDate: event.target.value }))}
+              required
+            />
+          </label>
+          <label>
+            <span>End date</span>
+            <input
+              type="date"
+              value={form.endDate}
+              onChange={(event) => setForm((prev) => ({ ...prev, endDate: event.target.value }))}
+              required
+            />
+          </label>
+          <input
+            placeholder="Key features (comma separated)"
+            value={form.keyFeatures}
+            onChange={(event) => setForm((prev) => ({ ...prev, keyFeatures: event.target.value }))}
+          />
+          <select
+            value={form.difficulty}
+            onChange={(event) => setForm((prev) => ({ ...prev, difficulty: event.target.value }))}
+          >
+            <option>Beginner</option>
+            <option>Intermediate</option>
+            <option>Advanced</option>
+          </select>
+          <select
+            value={form.isFree}
+            onChange={(event) => setForm((prev) => ({ ...prev, isFree: event.target.value }))}
+          >
+            <option value="false">Paid Course</option>
+            <option value="true">Free Course</option>
+          </select>
+          <input
+            type="number"
+            min="0"
+            value={form.price}
+            onChange={(event) => setForm((prev) => ({ ...prev, price: event.target.value }))}
+            placeholder="Price"
+          />
+          <textarea
+            placeholder="About course"
+            value={form.about}
+            onChange={(event) => setForm((prev) => ({ ...prev, about: event.target.value }))}
+            required
+          />
+          <label>
+            <span>Thumbnail</span>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(event) =>
+                setForm((prev) => ({
+                  ...prev,
+                  thumbnail: event.target.files && event.target.files[0] ? event.target.files[0] : null,
+                }))
+              }
+            />
+          </label>
+          <div className="form-actions">
+            <button className="btn" type="submit">
+              Save Course
+            </button>
+            <button type="button" className="btn btn-secondary" onClick={() => setShowAddForm(false)}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
       {message && <p className="muted">{message}</p>}
       {error && <p className="error-text">{error}</p>}
       <div className="table-wrap">
@@ -189,6 +209,7 @@ function CoursesPage() {
               <th>Title</th>
               <th>Course ID</th>
               <th>Instructor</th>
+              <th>Description</th>
               <th>Price</th>
               <th>Actions</th>
             </tr>
@@ -196,7 +217,7 @@ function CoursesPage() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={5}>Loading courses...</td>
+                <td colSpan={6}>Loading courses...</td>
               </tr>
             )}
             {!loading &&
@@ -205,21 +226,55 @@ function CoursesPage() {
                   <td>{course.title}</td>
                   <td>{course.courseId}</td>
                   <td>{course.instructorName}</td>
+                  <td>{truncateWords(course.about, 12)}</td>
                   <td>{course.isFree ? 'Free' : `INR ${course.price || 0}`}</td>
                   <td>
-                    <button
-                      type="button"
-                      className="btn btn-danger"
-                      onClick={() => deleteCourse(course._id)}
-                    >
-                      Delete
-                    </button>
+                    <div className="row-actions">
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => setSelectedCourse(course)}
+                      >
+                        View
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-danger"
+                        onClick={() => deleteCourse(course._id)}
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
           </tbody>
         </table>
       </div>
+      <DetailsModal
+        title="Course Details"
+        details={
+          selectedCourse
+            ? [
+                { label: 'Title', value: selectedCourse.title },
+                { label: 'Course ID', value: selectedCourse.courseId },
+                { label: 'Instructor', value: selectedCourse.instructorName },
+                { label: 'Language', value: selectedCourse.language },
+                { label: 'Access', value: selectedCourse.access },
+                { label: 'Duration', value: selectedCourse.duration },
+                { label: 'Description', value: selectedCourse.about || '-' },
+                {
+                  label: 'Key Features',
+                  value: Array.isArray(selectedCourse.keyFeatures)
+                    ? selectedCourse.keyFeatures.join(', ')
+                    : selectedCourse.keyFeatures || '-',
+                },
+                { label: 'Price', value: selectedCourse.isFree ? 'Free' : `INR ${selectedCourse.price || 0}` },
+              ]
+            : null
+        }
+        onClose={() => setSelectedCourse(null)}
+      />
     </section>
   )
 }

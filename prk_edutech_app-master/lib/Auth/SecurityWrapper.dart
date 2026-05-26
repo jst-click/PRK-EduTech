@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:no_screenshot/no_screenshot.dart';
+import 'dart:async';
+import '../constants.dart';
 
 class SecurityWrapper extends StatefulWidget {
   final Widget child;
@@ -11,59 +13,115 @@ class SecurityWrapper extends StatefulWidget {
   State<SecurityWrapper> createState() => _SecurityWrapperState();
 }
 
-class _SecurityWrapperState extends State<SecurityWrapper> with WidgetsBindingObserver {
+class _SecurityWrapperState extends State<SecurityWrapper>
+    with WidgetsBindingObserver {
   final _noScreenshot = NoScreenshot.instance;
+  StreamSubscription<dynamic>? _screenshotSubscription;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _enableSecurityFeatures();
+    if (kBlockScreenshots) {
+      _enableSecurityFeatures();
+    } else {
+      _disableSecurityFeatures();
+    }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    // Stop screenshot listening when widget is disposed
-    _noScreenshot.stopScreenshotListening();
+    _screenshotSubscription?.cancel();
+    unawaited(_disableSecurityFeatures());
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _enableSecurityFeatures();
+      if (kBlockScreenshots) {
+        _enableSecurityFeatures();
+      } else {
+        _disableSecurityFeatures();
+      }
     } else if (state == AppLifecycleState.paused) {
       // Additional security when app goes to background
-      _noScreenshot.screenshotOff();
+      if (kBlockScreenshots) {
+        _noScreenshot.screenshotOff();
+      }
     }
   }
 
-  void _enableSecurityFeatures() async {
+  Future<void> _enableSecurityFeatures() async {
     // Disable screenshots using the no_screenshot plugin
-    await _noScreenshot.screenshotOff();
+    try {
+      await _noScreenshot.screenshotOff();
+    } catch (e) {
+      debugPrint('screenshotOff failed: $e');
+    }
 
     // Start listening for screenshot attempts
-    await _noScreenshot.startScreenshotListening();
+    try {
+      await _noScreenshot.startScreenshotListening();
+    } catch (e) {
+      debugPrint('startScreenshotListening failed: $e');
+    }
 
     // Subscribe to screenshot events (optional - for logging purposes)
-    _noScreenshot.screenshotStream.listen((value) {
+    _screenshotSubscription?.cancel();
+    _screenshotSubscription = _noScreenshot.screenshotStream.listen((value) {
       if (value.wasScreenshotTaken) {
         debugPrint('Screenshot attempt detected!');
         // You could log this event or take other actions
       }
     });
 
-    // Additional platform security measures
-    // For Android
-    SystemChannels.platform.invokeMethod('SystemChrome.setEnabledSystemUIMode', [
-      'SystemUiMode.manual',
-      {'overlays': []}
-    ]);
+    // Hide system overlays safely through the Flutter API.
+    await SystemChrome.setEnabledSystemUIMode(
+      SystemUiMode.manual,
+      overlays: [],
+    );
 
-    // For iOS
+    // Optional native hook, ignore when channel/plugin isn't available.
     const methodChannel = MethodChannel('security_channel');
-    methodChannel.invokeMethod('preventScreenCapture');
+    try {
+      await methodChannel.invokeMethod('preventScreenCapture');
+    } on MissingPluginException {
+      // No native implementation registered for this build flavor/platform.
+    } catch (e) {
+      debugPrint('preventScreenCapture failed: $e');
+    }
+  }
+
+  Future<void> _disableSecurityFeatures() async {
+    try {
+      await _noScreenshot.screenshotOn();
+    } catch (e) {
+      debugPrint('screenshotOn failed: $e');
+    }
+
+    try {
+      await _noScreenshot.stopScreenshotListening();
+    } catch (e) {
+      debugPrint('stopScreenshotListening failed: $e');
+    }
+
+    try {
+      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    } catch (e) {
+      debugPrint('setEnabledSystemUIMode failed: $e');
+    }
+
+    // Optional native hook, ignore when channel/plugin isn't available.
+    const methodChannel = MethodChannel('security_channel');
+    try {
+      await methodChannel.invokeMethod('allowScreenCapture');
+    } on MissingPluginException {
+      // No native implementation registered for this build flavor/platform.
+    } catch (e) {
+      debugPrint('allowScreenCapture failed: $e');
+    }
   }
 
   @override

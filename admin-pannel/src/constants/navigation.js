@@ -7,4 +7,9 @@ export const navItems = [
   { path: '/icons', label: 'Icons' },
   { path: '/ebooks', label: 'Ebooks' },
   { path: '/tests', label: 'Tests' },
+  { path: '/faqs', label: 'FAQ' },
+  { path: '/online-classes', label: 'Online Class' },
+  { path: '/current-affairs', label: 'Current Affairs' },
+  { path: '/testimonials', label: 'Testimonials' },
+  { path: '/cms', label: 'CMS' },
 ]

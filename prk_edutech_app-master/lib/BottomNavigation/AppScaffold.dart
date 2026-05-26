@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:testing1/BottomNavigation/Batches.dart';
-import 'package:testing1/BottomNavigation/ChatScreen.dart';
 import 'package:testing1/BottomNavigation/JobsListings.dart';
 import 'package:testing1/BottomNavigation/Profile.dart';
-import 'package:testing1/BottomNavigation/Store.dart';
 import 'package:testing1/Components/Sidebar/CourseDetail.dart';
 import 'package:testing1/Sidebar/SideBar.dart';
 import '../Components/Sidebar/Ebooks.dart';
@@ -39,30 +36,6 @@ class _AppScaffoldState extends State<AppScaffold> {
     CourseDetailScreen(),
     JobsPage(),
     const ProfileScreen(),
-  ];
-
-  // List of navigation items for bottom bar
-  final List<BottomNavigationBarItem> _navItems = const [
-    BottomNavigationBarItem(
-      icon: Icon(Icons.home),
-      label: 'Home',
-    ),
-    BottomNavigationBarItem(
-      icon: Icon(Icons.class_),
-      label: 'Books',
-    ),
-    BottomNavigationBarItem(
-      icon: Icon(Icons.store),
-      label: 'Store',
-    ),
-    BottomNavigationBarItem(
-      icon: Icon(Icons.search),
-      label: 'Jobs',
-    ),
-    BottomNavigationBarItem(
-      icon: Icon(Icons.person),
-      label: 'Profile',
-    ),
   ];
 
   void _onNavItemTapped(int index) {
@@ -170,32 +143,30 @@ class _AppScaffoldState extends State<AppScaffold> {
       // Body with current screen or custom body
       body: widget.customBody ?? _screens[_currentIndex],
 
-      // Bottom Navigation Bar with consistent styling
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: backgroundColor,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.3),
-              spreadRadius: 1,
-              blurRadius: 3,
-              offset: const Offset(0, -1),
-            ),
-          ],
-        ),
-        child: BottomNavigationBar(
-          currentIndex: _currentIndex,
-          onTap: _onNavItemTapped,
-          type: BottomNavigationBarType.fixed,
-          backgroundColor: backgroundColor,
-          selectedItemColor: accentColor,
-          unselectedItemColor: primaryColor,
-          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500),
-          items: _navItems,
+      // Rounded floating bottom navigation, closer to mock UI
+      bottomNavigationBar: SafeArea(
+        minimum: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(30),
+          child: NavigationBar(
+            selectedIndex: _currentIndex,
+            onDestinationSelected: _onNavItemTapped,
+            backgroundColor: backgroundColor,
+            indicatorColor: accentColor.withOpacity(0.2),
+            shadowColor: Colors.black.withOpacity(0.18),
+            elevation: 8,
+            height: 68,
+            labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+            destinations: const [
+              NavigationDestination(icon: Icon(Icons.home_rounded), label: 'Home'),
+              NavigationDestination(icon: Icon(Icons.menu_book_rounded), label: 'Books'),
+              NavigationDestination(icon: Icon(Icons.storefront_rounded), label: 'Store'),
+              NavigationDestination(icon: Icon(Icons.work_outline_rounded), label: 'Jobs'),
+              NavigationDestination(icon: Icon(Icons.person_rounded), label: 'Profile'),
+            ],
+          ),
         ),
       ),
     );
   }
-  @override
-  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 }

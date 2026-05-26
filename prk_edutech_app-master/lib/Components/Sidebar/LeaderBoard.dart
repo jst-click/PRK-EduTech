@@ -32,7 +32,7 @@ class LeaderboardPage extends StatefulWidget {
 }
 
 class _LeaderboardPageState extends State<LeaderboardPage> {
-  List<dynamic> leaderboardEntries = [];
+  List<Map<String, dynamic>> leaderboardEntries = [];
   bool isLoading = true;
 
   @override
@@ -49,8 +49,24 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
 
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
+        final List<dynamic> rawEntries = responseData is List
+            ? responseData
+            : (responseData is Map<String, dynamic> && responseData['data'] is List)
+                ? responseData['data'] as List<dynamic>
+                : (responseData is Map<String, dynamic> && responseData['entries'] is List)
+                    ? responseData['entries'] as List<dynamic>
+                    : <dynamic>[];
         setState(() {
-          leaderboardEntries = responseData['data'];
+          leaderboardEntries = rawEntries
+              .whereType<Map<String, dynamic>>()
+              .map((entry) => <String, dynamic>{
+                    'name': (entry['name'] ?? 'Unknown').toString(),
+                    'designation':
+                        (entry['designation'] ?? 'No designation').toString(),
+                    'email': (entry['email'] ?? 'No email').toString(),
+                    'website': (entry['website'] ?? '').toString(),
+                  })
+              .toList();
           isLoading = false;
         });
       } else {
@@ -80,6 +96,10 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
   }
 
   Future<void> _launchURL(String url) async {
+    if (url.trim().isEmpty) {
+      _showErrorSnackBar('Website not available');
+      return;
+    }
     if (await canLaunch(url)) {
       await launch(url);
     } else {
@@ -116,6 +136,17 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
           ? Center(
         child: CircularProgressIndicator(
           color: Color(0xFFfb7e02),
+        ),
+      )
+          : leaderboardEntries.isEmpty
+          ? Center(
+        child: Text(
+          'Coming soon',
+          style: TextStyle(
+            color: Color(0xFFfb7e02),
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       )
           : Column(
@@ -165,7 +196,11 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
                       leading: CircleAvatar(
                         backgroundColor: Color(0xFFfb7e02),
                         child: Text(
-                          entry['name'][0].toUpperCase(),
+                          entry['name']
+                              .toString()
+                              .trim()
+                              .substring(0, 1)
+                              .toUpperCase(),
                           style: TextStyle(
                             color: Color(0xFFf5f2f9),
                             fontWeight: FontWeight.bold,
@@ -173,7 +208,7 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
                         ),
                       ),
                       title: Text(
-                        entry['name'],
+                        entry['name'].toString(),
                         style: TextStyle(
                         color: Color(0xFF000435),
                           fontWeight: FontWeight.bold,
@@ -185,7 +220,7 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
                         children: [
                           SizedBox(height: 8),
                           Text(
-                            entry['designation'],
+                            entry['designation'].toString(),
                             style: TextStyle(
                               color: Color(0xFF000435),
                               fontSize: 14,
@@ -202,7 +237,7 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
                               SizedBox(width: 8),
                               Expanded(
                                 child: Text(
-                                  entry['email'],
+                                  entry['email'].toString(),
                                   style: TextStyle(
                                     color: Color(0xFF000435),
                                     fontSize: 12,
@@ -220,7 +255,7 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
                           color: Color(0xFFfb7e02),
                         ),
                         onPressed: () => _launchURL(
-                            entry['website'] ?? 'https://default.com'),
+                            entry['website'].toString()),
                       ),
                     ),
                   ),

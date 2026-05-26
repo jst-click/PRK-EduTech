@@ -1,8 +1,48 @@
-import 'package:flutter/cupertino.dart';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:testing1/constants.dart';
 
-class PrivacyScreen extends StatelessWidget {
+class PrivacyScreen extends StatefulWidget {
   const PrivacyScreen({Key? key}) : super(key: key);
+
+  @override
+  State<PrivacyScreen> createState() => _PrivacyScreenState();
+}
+
+class _PrivacyScreenState extends State<PrivacyScreen> {
+  String _privacyText = '';
+  bool _isLoading = true;
+  String _error = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchPrivacy();
+  }
+
+  Future<void> _fetchPrivacy() async {
+    try {
+      final response = await http.get(Uri.parse(buildApiUrl('cms')));
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> payload = json.decode(response.body);
+        setState(() {
+          _privacyText = (payload['privacy'] ?? '').toString().trim();
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _error = 'Failed to load privacy policy';
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      setState(() {
+        _error = 'Error loading privacy policy';
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -11,87 +51,33 @@ class PrivacyScreen extends StatelessWidget {
         title: const Text('Privacy Policy'),
         backgroundColor: const Color(0xFF000435),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: const [
-          Text(
-            'Privacy Policy',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF000435),
-            ),
-          ),
-          SizedBox(height: 20),
-          Text(
-            'Last Updated: March 06, 2025',
-            style: TextStyle(
-              color: Colors.grey,
-              fontStyle: FontStyle.italic,
-            ),
-          ),
-          SizedBox(height: 20),
-          Text(
-            '1. Information We Collect',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          SizedBox(height: 8),
-          Text(
-            'We collect information you provide directly to us, such as your name, email address, phone number, and any other information you choose to provide when you register for an account or communicate with us.',
-          ),
-          SizedBox(height: 16),
-          Text(
-            '2. How We Use Your Information',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          SizedBox(height: 8),
-          Text(
-            'We use the information we collect to provide, maintain, and improve our services, communicate with you, and personalize your experience.',
-          ),
-          SizedBox(height: 16),
-          Text(
-            '3. Data Security',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          SizedBox(height: 8),
-          Text(
-            'We take reasonable measures to help protect information about you from loss, theft, misuse, unauthorized access, disclosure, alteration, and destruction.',
-          ),
-          SizedBox(height: 16),
-          Text(
-            '4. Data Sharing',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          SizedBox(height: 8),
-          Text(
-            'We do not share your personal information with third parties except as described in this policy or when required by law.',
-          ),
-          SizedBox(height: 16),
-          Text(
-            '5. Your Rights',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          SizedBox(height: 8),
-          Text(
-            'You have the right to access, update, and delete your personal information. You can do this by accessing your account settings or contacting us directly.',
-          ),
-        ],
-      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _error.isNotEmpty
+              ? Center(
+                  child: Text(
+                    _error,
+                    style: const TextStyle(color: Color(0xFF000435)),
+                  ),
+                )
+              : _privacyText.isEmpty
+                  ? const Center(
+                      child: Text(
+                        'No privacy policy available',
+                        style: TextStyle(color: Color(0xFF000435)),
+                      ),
+                    )
+                  : SingleChildScrollView(
+                      padding: const EdgeInsets.all(16),
+                      child: Text(
+                        _privacyText,
+                        style: const TextStyle(
+                          color: Color(0xFF000435),
+                          fontSize: 16,
+                          height: 1.5,
+                        ),
+                      ),
+                    ),
     );
   }
 }

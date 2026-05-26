@@ -20,6 +20,32 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Print failed route responses with route + message for easier debugging
+app.use((req, res, next) => {
+  let responseBody;
+  const originalJson = res.json.bind(res);
+
+  res.json = (body) => {
+    responseBody = body;
+    return originalJson(body);
+  };
+
+  res.on('finish', () => {
+    if (res.statusCode < 400) return;
+
+    const route = req.originalUrl || req.url || 'unknown-route';
+    const method = req.method || 'UNKNOWN';
+    const errorMessage =
+      responseBody?.message ||
+      responseBody?.error ||
+      (typeof responseBody === 'string' ? responseBody : 'No response message');
+
+    console.error(`[ROUTE_ERROR] ${method} ${route} -> ${res.statusCode}: ${errorMessage}`);
+  });
+
+  next();
+});
+
 const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
@@ -407,6 +433,53 @@ const bookSchema = new mongoose.Schema({
   pdf: { type: String }
 });
 
+const cmsSchema = new mongoose.Schema(
+  {
+    terms: { type: String, default: '' },
+    privacy: { type: String, default: '' },
+  },
+  { timestamps: true }
+);
+
+const resumeSchema = new mongoose.Schema(
+  {
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+      index: true,
+    },
+    name: { type: String, required: true, trim: true },
+    phone: { type: String, required: true, trim: true },
+    address: { type: String, required: true, trim: true },
+    email: { type: String, required: true, trim: true, lowercase: true },
+    summary: { type: String, required: true, trim: true },
+    education: [
+      {
+        degree: { type: String, required: true, trim: true },
+        college: { type: String, required: true, trim: true },
+        location: { type: String, required: true, trim: true },
+        gpa: { type: String, default: '', trim: true },
+        coursework: { type: String, default: '', trim: true },
+        title: { type: String, default: '', trim: true },
+      },
+    ],
+    experience: [
+      {
+        company: { type: String, required: true, trim: true },
+        position: { type: String, required: true, trim: true },
+        startDate: { type: String, required: true, trim: true },
+        endDate: { type: String, default: '', trim: true },
+        location: { type: String, default: '', trim: true },
+        description: { type: String, default: '', trim: true },
+      },
+    ],
+    skills: [{ type: String, trim: true }],
+    hobbies: [{ type: String, trim: true }],
+  },
+  { timestamps: true }
+);
+
 // Create model
 
 // Create Mongoose Models
@@ -420,6 +493,8 @@ const UIComponent = mongoose.model('UIComponent', uiComponentSchema);
 const CarouselImage = mongoose.model('CarouselImage', carouselImageSchema);
 const Icon = mongoose.model('Icon', iconSchema);
 const Book = mongoose.model('Book', bookSchema);
+const CMS = mongoose.model('CMS', cmsSchema);
+const Resume = mongoose.model('Resume', resumeSchema);
 const Test = mongoose.model('Test', testSchema)
 
 // Authentication Middleware
@@ -1265,8 +1340,8 @@ app.post('/api/profile/parents', authenticateToken, async (req, res) => {
     }
   });
   
-  // Get all courses (authenticated users)
-  app.get('/api/courses', authenticateToken, async (req, res) => {
+  // Get all courses (public for app listing)
+  app.get('/api/courses', async (req, res) => {
     try {
       const courses = await Course.find();
       res.json(courses);
@@ -1275,8 +1350,8 @@ app.post('/api/profile/parents', authenticateToken, async (req, res) => {
     }
   });
   
-  // Get single course by ID (authenticated users)
-  app.get('/api/courses/:id', authenticateToken, async (req, res) => {
+  // Get single course by ID (public for app details)
+  app.get('/api/courses/:id', async (req, res) => {
     try {
       const course = await Course.findById(req.params.id);
       if (!course) {
@@ -2232,6 +2307,69 @@ app.get('/api/ebooks', async (req, res) => {
   }
 });
 
+// GET a single book by id
+app.get('/api/ebooks/:id', async (req, res) => {
+  try {
+    const book = await Book.findById(req.params.id);
+    if (!book) {
+      return res.status(404).json({ message: 'Book not found' });
+    }
+    res.json(book);
+  } catch (error) {
+    console.error('Fetch Book Error:', error);
+    res.status(500).json({ message: 'Error fetching book', error: error.message });
+  }
+});
+
+app.get('/api/ebooks/:id/download-url', async (req, res) => {
+  try {
+    const book = await Book.findById(req.params.id);
+    if (!book) {
+      return res.status(404).json({ message: 'Book not found' });
+    }
+
+    const pdfValue = (book.pdf || '').toString().trim();
+    if (!pdfValue) {
+      return res.status(404).json({ message: 'PDF not available for this book' });
+    }
+
+    if (
+      /^https?:\/\//i.test(pdfValue) &&
+      pdfValue.includes('res.cloudinary.com') &&
+      pdfValue.includes('/image/upload/')
+    ) {
+      const match = pdfValue.match(/\/image\/upload\/(?:v\d+\/)?(.+)\.([a-zA-Z0-9]+)(?:\?|$)/);
+      if (match) {
+        const publicId = decodeURIComponent(match[1]);
+        const format = decodeURIComponent(match[2] || 'pdf');
+        const signedUrl = cloudinary.utils.private_download_url(publicId, format, {
+          resource_type: 'image',
+          type: 'upload',
+        });
+        return res.json({ url: signedUrl });
+      }
+    }
+
+    // For local uploads, return an absolute URL to this server.
+    if (!/^https?:\/\//i.test(pdfValue)) {
+      const slashPath = pdfValue.replace(/\\/g, '/');
+      const uploadsIndex = slashPath.toLowerCase().indexOf('/uploads/');
+      const finalPath = uploadsIndex >= 0
+        ? slashPath.substring(uploadsIndex)
+        : slashPath.toLowerCase().startsWith('uploads/')
+          ? `/${slashPath}`
+          : `/uploads/${slashPath.split('/').last}`;
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      return res.json({ url: `${baseUrl}${finalPath}` });
+    }
+
+    return res.json({ url: pdfValue });
+  } catch (error) {
+    console.error('Resolve Book PDF URL Error:', error);
+    return res.status(500).json({ message: 'Error resolving book PDF URL', error: error.message });
+  }
+});
+
 // POST new book
 app.post('/api/ebooks', multiUpload, async (req, res) => {
   try {
@@ -2321,6 +2459,236 @@ app.delete('/api/ebooks/:id', async (req, res) => {
   } catch (error) {
     console.error('Delete Book Error:', error);
     res.status(500).json({ message: 'Error deleting book', error: error.message });
+  }
+});
+
+app.get('/api/cms', async (req, res) => {
+  try {
+    const cms = await CMS.findOne();
+    if (!cms) {
+      return res.json({ terms: '', privacy: '' });
+    }
+
+    return res.json({
+      terms: cms.terms || '',
+      privacy: cms.privacy || '',
+    });
+  } catch (error) {
+    return res.status(500).json({ message: 'Error fetching CMS data', error: error.message });
+  }
+});
+
+app.put('/api/cms', authenticateToken, async (req, res) => {
+  try {
+    const { type, description } = req.body;
+    const safeType = String(type || '').trim().toLowerCase();
+
+    if (!['terms', 'privacy'].includes(safeType)) {
+      return res.status(400).json({ message: 'type must be terms or privacy' });
+    }
+
+    if (typeof description !== 'string' || description.trim() === '') {
+      return res.status(400).json({ message: 'Description is required' });
+    }
+
+    let cms = await CMS.findOne();
+    if (!cms) {
+      cms = new CMS();
+    }
+
+    cms[safeType] = description.trim();
+    await cms.save();
+
+    return res.json({
+      message: `${safeType} saved`,
+      terms: cms.terms || '',
+      privacy: cms.privacy || '',
+    });
+  } catch (error) {
+    return res.status(500).json({ message: 'Error saving CMS data', error: error.message });
+  }
+});
+
+app.post('/api/resumes', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized user' });
+    }
+
+    const payload = req.body || {};
+
+    const education = Array.isArray(payload.education)
+      ? payload.education.map((item) => ({
+          degree: String(item?.degree || '').trim(),
+          college: String(item?.college || '').trim(),
+          location: String(item?.location || '').trim(),
+          gpa: String(item?.gpa || '').trim(),
+          coursework: String(item?.coursework || '').trim(),
+          title: String(item?.title || '').trim(),
+        }))
+      : [];
+
+    const experience = Array.isArray(payload.experience)
+      ? payload.experience.map((item) => ({
+          company: String(item?.company || '').trim(),
+          position: String(item?.position || '').trim(),
+          startDate: String(item?.startDate || '').trim(),
+          endDate: String(item?.endDate || '').trim(),
+          location: String(item?.location || '').trim(),
+          description: String(item?.description || '').trim(),
+        }))
+      : [];
+
+    const skills = Array.isArray(payload.skills)
+      ? payload.skills.map((item) => String(item || '').trim()).filter(Boolean)
+      : [];
+
+    const hobbies = Array.isArray(payload.hobbies)
+      ? payload.hobbies.map((item) => String(item || '').trim()).filter(Boolean)
+      : [];
+
+    const resumeData = {
+      userId,
+      name: String(payload.name || '').trim(),
+      phone: String(payload.phone || '').trim(),
+      address: String(payload.address || '').trim(),
+      email: String(payload.email || '').trim().toLowerCase(),
+      summary: String(payload.summary || '').trim(),
+      education,
+      experience,
+      skills,
+      hobbies,
+    };
+
+    if (!resumeData.name || !resumeData.phone || !resumeData.address || !resumeData.email || !resumeData.summary) {
+      return res.status(400).json({ message: 'Name, phone, address, email, and summary are required' });
+    }
+
+    if (!education.length || education.some((item) => !item.degree || !item.college || !item.location)) {
+      return res.status(400).json({ message: 'Each education entry needs degree, college, and location' });
+    }
+
+    if (!experience.length || experience.some((item) => !item.company || !item.position || !item.startDate)) {
+      return res.status(400).json({ message: 'Each experience entry needs company, position, and start date' });
+    }
+
+    const resume = await Resume.create(resumeData);
+    return res.status(201).json(resume);
+  } catch (error) {
+    return res.status(500).json({ message: 'Error saving resume', error: error.message });
+  }
+});
+
+app.get('/api/resumes', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized user' });
+    }
+
+    const resumes = await Resume.find({ userId }).sort({ createdAt: -1 });
+    return res.json(resumes);
+  } catch (error) {
+    return res.status(500).json({ message: 'Error fetching resumes', error: error.message });
+  }
+});
+
+app.get('/api/resumes/:id', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized user' });
+    }
+
+    const resume = await Resume.findOne({ _id: req.params.id, userId });
+    if (!resume) {
+      return res.status(404).json({ message: 'Resume not found' });
+    }
+
+    return res.json(resume);
+  } catch (error) {
+    return res.status(500).json({ message: 'Error fetching resume', error: error.message });
+  }
+});
+
+app.put('/api/resumes/:id', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized user' });
+    }
+
+    const payload = req.body || {};
+    const updateData = {};
+
+    if (payload.name !== undefined) updateData.name = String(payload.name || '').trim();
+    if (payload.phone !== undefined) updateData.phone = String(payload.phone || '').trim();
+    if (payload.address !== undefined) updateData.address = String(payload.address || '').trim();
+    if (payload.email !== undefined) updateData.email = String(payload.email || '').trim().toLowerCase();
+    if (payload.summary !== undefined) updateData.summary = String(payload.summary || '').trim();
+
+    if (Array.isArray(payload.education)) {
+      updateData.education = payload.education.map((item) => ({
+        degree: String(item?.degree || '').trim(),
+        college: String(item?.college || '').trim(),
+        location: String(item?.location || '').trim(),
+        gpa: String(item?.gpa || '').trim(),
+        coursework: String(item?.coursework || '').trim(),
+        title: String(item?.title || '').trim(),
+      }));
+    }
+
+    if (Array.isArray(payload.experience)) {
+      updateData.experience = payload.experience.map((item) => ({
+        company: String(item?.company || '').trim(),
+        position: String(item?.position || '').trim(),
+        startDate: String(item?.startDate || '').trim(),
+        endDate: String(item?.endDate || '').trim(),
+        location: String(item?.location || '').trim(),
+        description: String(item?.description || '').trim(),
+      }));
+    }
+
+    if (Array.isArray(payload.skills)) {
+      updateData.skills = payload.skills.map((item) => String(item || '').trim()).filter(Boolean);
+    }
+
+    if (Array.isArray(payload.hobbies)) {
+      updateData.hobbies = payload.hobbies.map((item) => String(item || '').trim()).filter(Boolean);
+    }
+
+    const resume = await Resume.findOneAndUpdate(
+      { _id: req.params.id, userId },
+      updateData,
+      { new: true, runValidators: true }
+    );
+
+    if (!resume) {
+      return res.status(404).json({ message: 'Resume not found' });
+    }
+
+    return res.json(resume);
+  } catch (error) {
+    return res.status(500).json({ message: 'Error updating resume', error: error.message });
+  }
+});
+
+app.delete('/api/resumes/:id', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized user' });
+    }
+
+    const resume = await Resume.findOneAndDelete({ _id: req.params.id, userId });
+    if (!resume) {
+      return res.status(404).json({ message: 'Resume not found' });
+    }
+
+    return res.json({ message: 'Resume deleted successfully' });
+  } catch (error) {
+    return res.status(500).json({ message: 'Error deleting resume', error: error.message });
   }
 });
 
@@ -2493,6 +2861,19 @@ app.get('/api/tests/:id/details', async (req, res) => {
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
+});
+
+// Global fallback for unhandled route errors
+app.use((err, req, res, next) => {
+  const route = req.originalUrl || req.url || 'unknown-route';
+  const method = req.method || 'UNKNOWN';
+  console.error(`[UNHANDLED_ROUTE_ERROR] ${method} ${route}`, err);
+
+  if (res.headersSent) {
+    return next(err);
+  }
+
+  return res.status(500).json({ message: 'Internal server error' });
 });
 
   

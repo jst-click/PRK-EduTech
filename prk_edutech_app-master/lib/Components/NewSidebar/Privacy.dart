@@ -10,59 +10,34 @@ class Privacy extends StatefulWidget {
   _PrivacyState createState() => _PrivacyState();
 }
 
-class TestimonialModel {
-  final String id;
-  final String type;
-  final String question;
-  final String answer;
-
-  TestimonialModel({
-    required this.id,
-    required this.type,
-    required this.question,
-    required this.answer,
-  });
-
-  factory TestimonialModel.fromJson(Map<String, dynamic> json) {
-    return TestimonialModel(
-      id: json['_id'],
-      type: json['type'],
-      question: json['question'],
-      answer: json['answer'],
-    );
-  }
-}
-
 class _PrivacyState extends State<Privacy> {
-  List<TestimonialModel> _testimonials = [];
+  String _privacyText = '';
   bool _isLoading = true;
   String _error = '';
 
   @override
   void initState() {
     super.initState();
-    _fetchTestimonials();
+    _fetchPrivacyPolicy();
   }
 
-  Future<void> _fetchTestimonials() async {
+  Future<void> _fetchPrivacyPolicy() async {
     try {
       final response = await http.get(
-        Uri.parse(buildBaseUrl('questions')),
+        Uri.parse(buildApiUrl('cms')),
       );
 
       if (response.statusCode == 200) {
-        final List<dynamic> jsonResponse = json.decode(response.body);
+        final Map<String, dynamic> jsonResponse = json.decode(response.body);
+        final privacy = (jsonResponse['privacy'] ?? '').toString().trim();
 
         setState(() {
-          _testimonials = jsonResponse
-              .where((item) => item['type'] == 'PrivacyPolicy')
-              .map((item) => TestimonialModel.fromJson(item))
-              .toList();
+          _privacyText = privacy;
           _isLoading = false;
         });
       } else {
         setState(() {
-          _error = 'Failed to load';
+          _error = 'Failed to load privacy policy';
           _isLoading = false;
         });
       }
@@ -92,68 +67,57 @@ class _PrivacyState extends State<Privacy> {
       ),
       body: _isLoading
           ? Center(
-        child: CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFDFA408)),
-        ),
-      )
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFDFA408)),
+              ),
+            )
           : _error.isNotEmpty
-          ? Center(
-        child: Text(
-          _error,
-          style: TextStyle(color: Color(0xFF000435)),
-        ),
-      )
-          : ListView.builder(
-        padding: EdgeInsets.all(16),
-        itemCount: _testimonials.length,
-        itemBuilder: (context, index) {
-          final testimonial = _testimonials[index];
-          return Container(
-            margin: EdgeInsets.only(bottom: 16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Color(0xFF000435).withOpacity(0.1),
-                  spreadRadius: 2,
-                  blurRadius: 5,
-                  offset: Offset(0, 3),
-                ),
-              ],
-              border: Border.all(
-                color: Color(0xFFDFA408).withOpacity(0.3),
-                width: 1,
-              ),
-            ),
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    testimonial.question,
-                    style: TextStyle(
-                      color: Color(0xFF000435),
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+              ? Center(
+                  child: Text(
+                    _error,
+                    style: TextStyle(color: Color(0xFF000435)),
                   ),
-                  SizedBox(height: 8),
-                  Text(
-                    testimonial.answer,
-                    style: TextStyle(
-                      color: Color(0xFFfb7e02).withOpacity(0.9),
-                      fontSize: 16,
-                      fontStyle: FontStyle.italic,
+                )
+              : _privacyText.isEmpty
+                  ? Center(
+                      child: Text(
+                        'No privacy policy available',
+                        style: TextStyle(color: Color(0xFF000435)),
+                      ),
+                    )
+                  : SingleChildScrollView(
+                      padding: EdgeInsets.all(16),
+                      child: Container(
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Color(0xFF000435).withOpacity(0.1),
+                              spreadRadius: 2,
+                              blurRadius: 5,
+                              offset: Offset(0, 3),
+                            ),
+                          ],
+                          border: Border.all(
+                            color: Color(0xFFDFA408).withOpacity(0.3),
+                            width: 1,
+                          ),
+                        ),
+                        child: Padding(
+                          padding: EdgeInsets.all(16),
+                          child: Text(
+                            _privacyText,
+                            style: TextStyle(
+                              color: Color(0xFF000435),
+                              fontSize: 16,
+                              height: 1.5,
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
     );
   }
 }

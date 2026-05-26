@@ -28,6 +28,9 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   // Loading state
   bool _isLoading = true;
   Map<String, dynamic> _userData = {};
+  bool _isFaqLoading = true;
+  String _faqError = '';
+  List<Map<String, String>> _faqItems = [];
 
   // Color Palette
   final Color _primaryColor = const Color(0xFF000435); // Dark Blue
@@ -44,8 +47,9 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 6, vsync: this);
     _fetchUserProfile();
+    _fetchFaqs();
   }
 
   @override
@@ -89,6 +93,45 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
     } catch (e) {
       _showErrorSnackBar('Error: ${e.toString()}');
       setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _fetchFaqs() async {
+    setState(() {
+      _isFaqLoading = true;
+      _faqError = '';
+    });
+
+    try {
+      final response = await http.get(Uri.parse(buildApiUrl('faqs')));
+      if (response.statusCode == 200) {
+        final dynamic decoded = json.decode(response.body);
+        final List<Map<String, String>> parsedFaqs = (decoded is List ? decoded : <dynamic>[])
+            .whereType<Map<String, dynamic>>()
+            .map(
+              (item) => {
+                'question': (item['question'] ?? '').toString(),
+                'answer': (item['answer'] ?? '').toString(),
+              },
+            )
+            .where((item) => item['question']!.isNotEmpty || item['answer']!.isNotEmpty)
+            .toList();
+
+        setState(() {
+          _faqItems = parsedFaqs;
+          _isFaqLoading = false;
+        });
+      } else {
+        setState(() {
+          _faqError = 'Failed to load FAQs';
+          _isFaqLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _faqError = 'Error: ${e.toString()}';
+        _isFaqLoading = false;
+      });
     }
   }
 
@@ -193,6 +236,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                 Tab(icon: Icon(Icons.contact_mail), text: 'Details'),
                 Tab(icon: Icon(Icons.home), text: 'Address'),
                 Tab(icon: Icon(Icons.school), text: 'Education'),
+                Tab(icon: Icon(Icons.help_outline), text: 'FAQ'),
               ],
             ),
           ),
@@ -279,10 +323,89 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                 PersonalDetailsTab(userData: _userData, onUpdate: _fetchUserProfile),
                 AddressInfoTab(userData: _userData, onUpdate: _fetchUserProfile),
                 EducationInfoTab(userData: _userData, onUpdate: _fetchUserProfile),
+                _buildFaqTab(),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildFaqTab() {
+    if (_isFaqLoading) {
+      return Center(child: CircularProgressIndicator(color: _secondaryColor));
+    }
+
+    if (_faqError.isNotEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(_faqError, style: const TextStyle(color: Colors.red)),
+              const SizedBox(height: 10),
+              ElevatedButton(
+                onPressed: _fetchFaqs,
+                style: ElevatedButton.styleFrom(backgroundColor: _secondaryColor),
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_faqItems.isEmpty) {
+      return const Center(
+        child: Text(
+          'No FAQs available right now.',
+          style: TextStyle(color: Color(0xFF000435)),
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _fetchFaqs,
+      color: _secondaryColor,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(12),
+        itemCount: _faqItems.length,
+        itemBuilder: (context, index) {
+          final faq = _faqItems[index];
+          return Card(
+            color: Colors.white,
+            elevation: 2,
+            margin: const EdgeInsets.only(bottom: 10),
+            child: ExpansionTile(
+              iconColor: _secondaryColor,
+              collapsedIconColor: _primaryColor,
+              title: Text(
+                faq['question'] ?? '',
+                style: TextStyle(
+                  color: _primaryColor,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      faq['answer'] ?? '',
+                      style: const TextStyle(
+                        color: Color(0xFFFB7E02),
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }

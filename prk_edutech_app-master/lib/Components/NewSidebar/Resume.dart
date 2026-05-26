@@ -6,6 +6,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:open_file/open_file.dart';
 import 'package:testing1/constants.dart';
+import 'package:testing1/Auth/TokenManager.dart';
 import 'dart:io';
 
 class Education {
@@ -542,6 +543,11 @@ class _ResumeBuilderHomeState extends State<ResumeBuilderHome> {
       });
 
       try {
+        final token = await TokenManager.getToken();
+        if (token == null || token.isEmpty) {
+          throw Exception('Please login again');
+        }
+
         // Clean up skills and hobbies lists (remove empty items)
         skillsList = skillsList.where((skill) => skill.isNotEmpty).toList();
         hobbiesList = hobbiesList.where((hobby) => hobby.isNotEmpty).toList();
@@ -578,7 +584,10 @@ class _ResumeBuilderHomeState extends State<ResumeBuilderHome> {
         // Send data to server
         final response = await http.post(
           Uri.parse(buildApiUrl('resumes')),
-          headers: {'Content-Type': 'application/json'},
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
           body: jsonEncode(resumeData),
         );
 
@@ -594,7 +603,11 @@ class _ResumeBuilderHomeState extends State<ResumeBuilderHome> {
             ),
           );
         } else {
-          throw Exception('Failed to save resume');
+          final responseData = jsonDecode(response.body);
+          final message = responseData is Map<String, dynamic>
+              ? (responseData['message']?.toString() ?? 'Failed to save resume')
+              : 'Failed to save resume';
+          throw Exception(message);
         }
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -615,12 +628,25 @@ class _ResumeBuilderHomeState extends State<ResumeBuilderHome> {
     setState(() => _isLoading = true);
 
     try {
+      final token = await TokenManager.getToken();
+      if (token == null || token.isEmpty) {
+        throw Exception('Please login again');
+      }
+
       final response = await http.get(
         Uri.parse(buildApiUrl('resumes/$_resumeId')),
+        headers: {
+          'Authorization': 'Bearer $token',
+        },
       );
 
-      if (response.statusCode != 200) throw Exception(
-          'Failed to fetch resume data');
+      if (response.statusCode != 200) {
+        final responseData = jsonDecode(response.body);
+        final message = responseData is Map<String, dynamic>
+            ? (responseData['message']?.toString() ?? 'Failed to fetch resume data')
+            : 'Failed to fetch resume data';
+        throw Exception(message);
+      }
 
       final resume = jsonDecode(response.body);
       final pdf = pw.Document();

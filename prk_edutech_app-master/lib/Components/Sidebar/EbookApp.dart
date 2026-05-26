@@ -40,6 +40,15 @@ class _EbookAppState extends State<EbookApp> with SingleTickerProviderStateMixin
   bool isLoading = true;
   String selectedCategory = 'all';
 
+  String _safeText(dynamic value, {String fallback = 'N/A'}) {
+    final text = value?.toString().trim() ?? '';
+    return text.isEmpty ? fallback : text;
+  }
+
+  String _safeUpper(dynamic value, {String fallback = 'N/A'}) {
+    return _safeText(value, fallback: fallback).toUpperCase();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -54,11 +63,19 @@ class _EbookAppState extends State<EbookApp> with SingleTickerProviderStateMixin
     });
 
     try {
-      final response = await http.get(Uri.parse(buildBaseUrl('resources/')));
+      http.Response? successResponse;
+      for (final endpoint in resourceListApiCandidates()) {
+        final response = await http.get(Uri.parse(endpoint));
+        if (response.statusCode == 200) {
+          successResponse = response;
+          break;
+        }
+      }
 
-      if (response.statusCode == 200) {
+      if (successResponse != null) {
+        final decoded = json.decode(successResponse.body);
         setState(() {
-          resources = json.decode(response.body);
+          resources = normalizeResourceList(decoded);
           isLoading = false;
         });
       } else {
@@ -88,15 +105,29 @@ class _EbookAppState extends State<EbookApp> with SingleTickerProviderStateMixin
   }
 
   Widget _buildResourceCard(dynamic resource) {
+    final resourceId = _safeText(resource['_id'], fallback: '');
+    final imageUrl = _safeText(resource['imageUrl'], fallback: '');
+    final title = _safeText(resource['title'], fallback: 'Untitled Resource');
+    final description =
+        _safeText(resource['description'], fallback: 'No description available');
+    final author = _safeText(resource['author'], fallback: 'Unknown Author');
+    final contentType = _safeUpper(resource['contentType'], fallback: 'EBOOK');
+
     // Check if imageUrl is a base64 encoded string
-    bool isBase64Image = resource['imageUrl'].toString().startsWith('data:image');
+    bool isBase64Image = imageUrl.startsWith('data:image');
 
     return GestureDetector(
       onTap: () {
+        if (resourceId.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Unable to open this ebook right now')),
+          );
+          return;
+        }
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => ResourceDetailPage(resourceId: resource['_id']),
+            builder: (context) => ResourceDetailPage(resourceId: resourceId),
           ),
         );
       },
@@ -116,11 +147,11 @@ class _EbookAppState extends State<EbookApp> with SingleTickerProviderStateMixin
                 width: double.infinity,
                 child: isBase64Image
                     ? Image.memory(
-                  base64Decode(resource['imageUrl'].split(',')[1]),
+                  base64Decode(imageUrl.split(',')[1]),
                   fit: BoxFit.cover,
                 )
                     : CachedNetworkImage(
-                  imageUrl: resource['imageUrl'],
+                  imageUrl: imageUrl,
                   fit: BoxFit.cover,
                   placeholder: (context, url) => Center(
                     child: CircularProgressIndicator(
@@ -137,7 +168,7 @@ class _EbookAppState extends State<EbookApp> with SingleTickerProviderStateMixin
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    resource['title'],
+                    title,
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -146,7 +177,7 @@ class _EbookAppState extends State<EbookApp> with SingleTickerProviderStateMixin
                   ),
                   SizedBox(height: 8),
                   Text(
-                    resource['description'],
+                    description,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(fontSize: 14, color: Colors.grey[700]),
@@ -160,7 +191,7 @@ class _EbookAppState extends State<EbookApp> with SingleTickerProviderStateMixin
                           Icon(Icons.person, size: 16, color: Color(0xFFfb7e02)),
                           SizedBox(width: 4),
                           Text(
-                            resource['author'],
+                            author,
                             style: TextStyle(fontSize: 14),
                           ),
                         ],
@@ -172,7 +203,7 @@ class _EbookAppState extends State<EbookApp> with SingleTickerProviderStateMixin
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
-                          resource['contentType'].toUpperCase(),
+                          contentType,
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
@@ -222,7 +253,7 @@ class _EbookAppState extends State<EbookApp> with SingleTickerProviderStateMixin
             ),
             SizedBox(height: 16),
             Text(
-              'No ${selectedCategory == 'notes' ? 'Notes' : 'Ebooks'} Found',
+              'Coming soon',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -263,6 +294,36 @@ class _ResourceDetailPageState extends State<ResourceDetailPage> {
   String? pdfPath;
   bool isPdfLoading = false;
 
+  String _safeText(dynamic value, {String fallback = 'N/A'}) {
+    final text = value?.toString().trim() ?? '';
+    return text.isEmpty ? fallback : text;
+  }
+
+  String _safeUpper(dynamic value, {String fallback = 'N/A'}) {
+    return _safeText(value, fallback: fallback).toUpperCase();
+  }
+
+  Future<String?> _resolvePdfUrl(String currentUrl) async {
+    final bookId = _safeText(resourceDetail['_id'], fallback: '');
+    if (bookId.isEmpty) return null;
+
+    try {
+      final response = await http.get(
+        Uri.parse(buildApiUrl('ebooks/$bookId/download-url')),
+      );
+      if (response.statusCode != 200) return null;
+
+      final decoded = json.decode(response.body);
+      if (decoded is! Map<String, dynamic>) return null;
+
+      final resolvedUrl = _safeText(decoded['url'], fallback: '');
+      if (resolvedUrl.isEmpty || resolvedUrl == currentUrl) return null;
+      return resolvedUrl;
+    } catch (_) {
+      return null;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -275,13 +336,21 @@ class _ResourceDetailPageState extends State<ResourceDetailPage> {
     });
 
     try {
-      final response = await http.get(
-        Uri.parse(buildBaseUrl('resources/${widget.resourceId}')),
-      );
+      http.Response? successResponse;
+      for (final endpoint in resourceDetailApiCandidates(widget.resourceId)) {
+        final response = await http.get(Uri.parse(endpoint));
+        if (response.statusCode == 200) {
+          successResponse = response;
+          break;
+        }
+      }
 
-      if (response.statusCode == 200) {
+      if (successResponse != null) {
+        final decoded = json.decode(successResponse.body);
         setState(() {
-          resourceDetail = json.decode(response.body);
+          resourceDetail = decoded is Map<String, dynamic>
+              ? normalizeResourceItem(decoded)
+              : <String, dynamic>{};
           isLoading = false;
         });
       } else {
@@ -303,7 +372,8 @@ class _ResourceDetailPageState extends State<ResourceDetailPage> {
   }
 
   Future<void> downloadAndOpenPdf() async {
-    if (resourceDetail['pdfUrl'] == null) {
+    var pdfUrl = (resourceDetail['pdfUrl'] ?? '').toString().trim();
+    if (pdfUrl.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('No PDF available for this resource')),
       );
@@ -316,7 +386,21 @@ class _ResourceDetailPageState extends State<ResourceDetailPage> {
 
     try {
       // Get the PDF from network
-      final response = await http.get(Uri.parse(resourceDetail['pdfUrl']));
+      var response = await http.get(Uri.parse(pdfUrl));
+      if (response.statusCode != 200 || response.bodyBytes.isEmpty) {
+        final fallbackUrl = await _resolvePdfUrl(pdfUrl);
+        if (fallbackUrl != null) {
+          pdfUrl = fallbackUrl;
+          response = await http.get(Uri.parse(pdfUrl));
+        }
+      }
+
+      if (response.statusCode != 200) {
+        throw Exception('PDF request failed with status ${response.statusCode}');
+      }
+      if (response.bodyBytes.isEmpty) {
+        throw Exception('Received empty PDF file from server');
+      }
 
       // Get temporary directory
       final dir = await getTemporaryDirectory();
@@ -335,12 +419,16 @@ class _ResourceDetailPageState extends State<ResourceDetailPage> {
       });
 
       // Navigate to PDF viewer
+      final title = _safeText(
+        resourceDetail['title'],
+        fallback: 'Educational Resource',
+      );
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => PdfViewerPage(
             pdfPath: filePath,
-            title: resourceDetail['title'],
+            title: title,
           ),
         ),
       );
@@ -360,10 +448,25 @@ class _ResourceDetailPageState extends State<ResourceDetailPage> {
 
   @override
   Widget build(BuildContext context) {
+    final title = _safeText(
+      resourceDetail['title'],
+      fallback: 'Educational Resource',
+    );
+    final imageUrl = _safeText(resourceDetail['imageUrl'], fallback: '');
+    final description =
+        _safeText(resourceDetail['description'], fallback: 'No description available');
+    final contentType = _safeUpper(resourceDetail['contentType'], fallback: 'EBOOK');
+    final difficultyLevel =
+        _safeUpper(resourceDetail['difficultyLevel'], fallback: 'GENERAL');
+    final pricing = _safeText(resourceDetail['pricing'], fallback: 'free').toLowerCase();
+    final author = _safeText(resourceDetail['author'], fallback: 'Unknown Author');
+    final subject = _safeText(resourceDetail['subject'], fallback: 'General');
+    final createdAt = _safeText(resourceDetail['createdAt'], fallback: '');
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          isLoading ? 'Loading...' : resourceDetail['title'],
+          isLoading ? 'Loading...' : title,
           style: TextStyle(color: Color(0xFF000435)),
         ),
         backgroundColor: Colors.white,
@@ -383,13 +486,13 @@ class _ResourceDetailPageState extends State<ResourceDetailPage> {
             Container(
               height: 200,
               width: double.infinity,
-              child: isBase64Image(resourceDetail['imageUrl'])
+              child: isBase64Image(imageUrl)
                   ? Image.memory(
-                base64Decode(resourceDetail['imageUrl'].split(',')[1]),
+                base64Decode(imageUrl.split(',')[1]),
                 fit: BoxFit.cover,
               )
                   : CachedNetworkImage(
-                imageUrl: resourceDetail['imageUrl'],
+                imageUrl: imageUrl,
                 fit: BoxFit.cover,
                 placeholder: (context, url) => Center(
                   child: CircularProgressIndicator(
@@ -407,7 +510,7 @@ class _ResourceDetailPageState extends State<ResourceDetailPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    resourceDetail['title'],
+                    title,
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
@@ -426,7 +529,7 @@ class _ResourceDetailPageState extends State<ResourceDetailPage> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
-                          resourceDetail['contentType'].toUpperCase(),
+                          contentType,
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
@@ -442,7 +545,7 @@ class _ResourceDetailPageState extends State<ResourceDetailPage> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
-                          resourceDetail['difficultyLevel'].toUpperCase(),
+                          difficultyLevel,
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
@@ -454,17 +557,17 @@ class _ResourceDetailPageState extends State<ResourceDetailPage> {
                       Container(
                         padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                         decoration: BoxDecoration(
-                          color: resourceDetail['pricing'] == 'free'
+                          color: pricing == 'free'
                               ? Colors.green.withOpacity(0.2)
                               : Colors.red.withOpacity(0.2),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
-                          resourceDetail['pricing'].toUpperCase(),
+                          pricing.toUpperCase(),
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
-                            color: resourceDetail['pricing'] == 'free'
+                            color: pricing == 'free'
                                 ? Colors.green
                                 : Colors.red,
                           ),
@@ -486,7 +589,7 @@ class _ResourceDetailPageState extends State<ResourceDetailPage> {
                   ),
                   SizedBox(height: 8),
                   Text(
-                    resourceDetail['description'],
+                    description,
                     style: TextStyle(
                       fontSize: 16,
                       color: Colors.grey[800],
@@ -514,11 +617,11 @@ class _ResourceDetailPageState extends State<ResourceDetailPage> {
                     ),
                     child: Column(
                       children: [
-                        _buildDetailItem('Author', resourceDetail['author'], Icons.person),
+                        _buildDetailItem('Author', author, Icons.person),
                         Divider(height: 1),
-                        _buildDetailItem('Subject', resourceDetail['subject'], Icons.subject),
+                        _buildDetailItem('Subject', subject, Icons.subject),
                         Divider(height: 1),
-                        _buildDetailItem('Added On', _formatDate(resourceDetail['createdAt']), Icons.calendar_today),
+                        _buildDetailItem('Added On', _formatDate(createdAt), Icons.calendar_today),
                       ],
                     ),
                   ),
@@ -594,7 +697,8 @@ class _ResourceDetailPageState extends State<ResourceDetailPage> {
   }
 
   String _formatDate(String dateString) {
-    final DateTime date = DateTime.parse(dateString);
+    final date = DateTime.tryParse(dateString);
+    if (date == null) return 'N/A';
     return '${date.day}/${date.month}/${date.year}';
   }
 }

@@ -12,23 +12,28 @@ class CurrentAffairsPage extends StatefulWidget {
 
 class TestimonialModel {
   final String id;
-  final String type;
   final String question;
   final String answer;
+  final String source;
+  final DateTime? publishedAt;
 
   TestimonialModel({
     required this.id,
-    required this.type,
     required this.question,
     required this.answer,
+    required this.source,
+    required this.publishedAt,
   });
 
   factory TestimonialModel.fromJson(Map<String, dynamic> json) {
+    final rawDate = (json['publishedAt'] ?? json['createdAt'] ?? '').toString();
+    final parsedDate = DateTime.tryParse(rawDate);
     return TestimonialModel(
-      id: json['_id'],
-      type: json['type'],
-      question: json['question'],
-      answer: json['answer'],
+      id: (json['_id'] ?? '').toString(),
+      question: (json['question'] ?? 'Question coming soon').toString(),
+      answer: (json['answer'] ?? 'Answer coming soon').toString(),
+      source: (json['source'] ?? '').toString(),
+      publishedAt: parsedDate,
     );
   }
 }
@@ -47,16 +52,21 @@ class _CurrentAffairsPageState extends State<CurrentAffairsPage> {
   Future<void> _fetchTestimonials() async {
     try {
       final response = await http.get(
-        Uri.parse(buildBaseUrl('questions')),
+        Uri.parse(buildApiUrl('current-affairs')),
       );
 
       if (response.statusCode == 200) {
-        final List<dynamic> jsonResponse = json.decode(response.body);
+        final decoded = json.decode(response.body);
+        final List<dynamic> jsonResponse = decoded is List
+            ? decoded
+            : (decoded is Map<String, dynamic> && decoded['data'] is List)
+                ? decoded['data'] as List<dynamic>
+                : <dynamic>[];
 
         setState(() {
           _testimonials = jsonResponse
-              .where((item) => item['type'] == 'CurrentAffairs')
-              .map((item) => TestimonialModel.fromJson(item))
+              .whereType<Map<String, dynamic>>()
+              .map(TestimonialModel.fromJson)
               .toList();
           _isLoading = false;
         });
@@ -101,6 +111,17 @@ class _CurrentAffairsPageState extends State<CurrentAffairsPage> {
         child: Text(
           _error,
           style: TextStyle(color: Color(0xFF000435)),
+        ),
+      )
+          : _testimonials.isEmpty
+          ? Center(
+        child: Text(
+          'Coming soon',
+          style: TextStyle(
+            color: Color(0xFFfb7e02),
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       )
           : ListView.builder(
@@ -148,6 +169,27 @@ class _CurrentAffairsPageState extends State<CurrentAffairsPage> {
                       fontStyle: FontStyle.italic,
                     ),
                   ),
+                  if (testimonial.source.isNotEmpty) ...[
+                    SizedBox(height: 10),
+                    Text(
+                      'Source: ${testimonial.source}',
+                      style: TextStyle(
+                        color: Color(0xFF000435).withOpacity(0.7),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                  if (testimonial.publishedAt != null) ...[
+                    SizedBox(height: 4),
+                    Text(
+                      'Date: ${testimonial.publishedAt!.day.toString().padLeft(2, '0')}-${testimonial.publishedAt!.month.toString().padLeft(2, '0')}-${testimonial.publishedAt!.year}',
+                      style: TextStyle(
+                        color: Color(0xFF000435).withOpacity(0.6),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
